@@ -1294,12 +1294,8 @@ html{
   font-family:"Noto Sans KR","Malgun Gothic","Apple SD Gothic Neo",sans-serif;
   font-size:16px;
   line-height:1.5;
-  -webkit-text-size-adjust:100%;
-  text-size-adjust:100%;
-}
-body{
-  -webkit-text-size-adjust:100%;
-  text-size-adjust:100%;
+  -webkit-text-size-adjust:none;
+  text-size-adjust:none;
 }
 body,button,input,select,textarea,summary,label,a{
   font-family:inherit!important;
@@ -15657,14 +15653,8 @@ async function __v322RepresentativeNormalizeAndErase(cropMode, baseName){
       if(normalizeGroup) cn=fitResultCanvasV451(cn,targetW,targetH);
       const didSize=(it.w!==cn.width || it.h!==cn.height);
       const didErase=er.erased.L||er.erased.R||er.erased.T||er.erased.B;
-      // V1013: The card already owns the PNG produced by the crop writer.
-      // When this terminal pass neither changes its size nor erases an edge,
-      // encoding the same canvas again cannot change the published pixels.
-      // Mobile PNG encoding is expensive, so only materialize a replacement
-      // URL for canvases that this pass actually modified.
-      const didRenderChange=!!(didSize || didErase);
-      if(didRenderChange){
-        const url=cn.toDataURL('image/png');
+      const url=cn.toDataURL('image/png');
+      if(didSize || didErase || it.img.src!==url){
         it.img.src=url;
         const numText=(it.card.querySelector('.num')||{}).textContent || String(it.idx+1).padStart(3,'0');
         __bindCutImageDownloadV482(it.card,it.img);
@@ -15672,7 +15662,7 @@ async function __v322RepresentativeNormalizeAndErase(cropMode, baseName){
       }
       // V596: 대형 시트의 PNG 인코딩/DOM 갱신을 한 프레임에 45개 연속
       // 실행하지 않는다. 결과 순서/픽셀은 그대로 두고 UI에 제어권만 반환한다.
-      if(didRenderChange && ++renderedSinceYieldV596>=5){renderedSinceYieldV596=0;await __diagRafYieldV964('postprocess-every-5-changed-cuts-v1013');}
+      if(++renderedSinceYieldV596>=5){renderedSinceYieldV596=0;await __diagRafYieldV964('postprocess-every-5-cuts-v596');}
       log.push({num:(it.card.querySelector('.num')||{}).textContent, before:it.w+'x'+it.h, after:cn.width+'x'+cn.height, cluster:group.id, target:targetW+'x'+targetH, normalizedV451:normalizeGroup && (beforeNormalize.w!==cn.width||beforeNormalize.h!==cn.height), beforeNormalize:beforeNormalize.w+'x'+beforeNormalize.h, trim:fit.trim, preClean:fit.preClean||{L:0,R:0,T:0,B:0}, evidenceClean:fit.evidenceClean||null, pad:fit.pad, padFill:fit.padFill||'none', erase:er.erased, eraseTrace:er.eraseTrace||null, eraseFill:er.eraseFill||'none'});
     }
   }
