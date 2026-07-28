@@ -6321,14 +6321,29 @@ if((engineMode==='auto'||engineMode==='opencv')&&__v906DirectRecoveredSourceFram
 }
 const __sharedSpreadV854=__sharedLocalClosedV854.sizeSpread||{w:9,h:9};
 const __sharedDominantRatioV854=(__sharedLocalClosedV854.dominantCount||0)/Math.max(1,__sharedLocalClosedV854.accepted||0);
+const __sharedCompleteMatrixV1012=!!(
+  __sharedLocalClosedV854.applied&&
+  (__sharedLocalClosedV854.rows||0)>=2&&
+  (__sharedLocalClosedV854.cols||0)>=2&&
+  (__sharedLocalClosedV854.count||0)===
+    (__sharedLocalClosedV854.rows||0)*(__sharedLocalClosedV854.cols||0)&&
+  Array.isArray(__sharedLocalClosedV854.rects)&&
+  __sharedLocalClosedV854.rects.length===(__sharedLocalClosedV854.count||0)&&
+  !__sharedLocalClosedV854.rects.some(r=>r&&(
+    r.__virtualOccupiedCellV668||r.__virtualOpenCvImageBoundsV670
+  ))
+);
 const __sharedLocalClosedStrictV854=!!(
-  sourceImage.height/Math.max(1,sourceImage.width)>=3&&
   __sharedLocalClosedV854.applied&&
   (__sharedLocalClosedV854.count||0)>=6&&
   (__sharedLocalClosedV854.rows||0)>=2&&
   __sharedDominantRatioV854>=.90&&
   (__sharedSpreadV854.w||0)<=.08&&
-  (__sharedSpreadV854.h||0)<=.08
+  (__sharedSpreadV854.h||0)<=.08&&
+  (
+    sourceImage.height/Math.max(1,sourceImage.width)>=3||
+    __sharedCompleteMatrixV1012
+  )
 );
 if(__sharedLocalClosedStrictV854){
   const med=a=>{const s=a.slice().sort((x,y)=>x-y);return s[Math.floor(s.length/2)]||0;};
@@ -6358,6 +6373,16 @@ if(engineMode==='auto'&&cvBoxes.length>=3){
 const __reconcileBackgroundIslandsV892=(boxes)=>{
   const src=(boxes||[]).slice();
   const islands=(__opencvBackgroundIslandsV887&&__opencvBackgroundIslandsV887.applied)?(__opencvBackgroundIslandsV887.boxes||[]):[];
+  // V1012: a complete, source-proven local-frame matrix has stronger
+  // coordinate evidence than background islands.  Islands describe filled
+  // regions and may include the black frame itself; they may still be used
+  // when the source-frame matrix is incomplete or unproven.
+  if(__sharedLocalClosedStrictV854&&__sharedCompleteMatrixV1012){
+    return {boxes:src,debug:{version:'v1012-source-frame-matrix-before-background-islands',
+      applied:false,reason:'complete-source-frame-matrix-owns-coordinates',
+      islands:islands.length,opencvCandidates:src.length,covered:0,
+      padding:false,resize:false}};
+  }
   const inside=(r,a)=>{const cx=r.x+r.w/2,cy=r.y+r.h/2;return cx>=a.x&&cx<=a.x+a.w&&cy>=a.y&&cy<=a.y+a.h;};
   const covered=islands.filter(a=>src.some(r=>inside(r,a))).length;
   const adopt=islands.length>=2&&covered===islands.length&&src.length>=islands.length+1;
@@ -16964,6 +16989,164 @@ const __repeatedFrameMajorityContractV888=(()=>{
 })();
 window.__REPEATED_FRAME_MAJORITY_CONTRACT_V888__=__repeatedFrameMajorityContractV888;
 
+// V1012: a complete local-frame matrix already carries original-resolution
+// measurements for every physical side.  Do not rebuild its inner rectangle
+// from a detector boundingRect plus a representative inset: the detector rect
+// can start one raster inside/outside the physical line.  Instead, preserve
+// each measured side, let only same-row/same-column peers reject an outlying
+// side measurement, and publish the resulting absolute source axes.
+//
+// This is a coordinate contract, not a post-crop cleanup.  It reuses V554's
+// existing source measurements and performs no image readback.
+const __completeMatrixMeasuredAxesV1012=(()=>{
+  const graph=__sharedLocalClosedV854||null;
+  const out={version:'v1012-complete-matrix-measured-inner-axes',applied:false,
+    reason:'not-qualified',count:ordered.length,padding:false,resize:false};
+  if(cropMode!=='tight'||!__sharedCompleteMatrixV1012||
+     ordered.length!==(graph&&graph.count||0)||
+     __frameContractsV554.length!==ordered.length||
+     ordered.some(r=>!r||!r.__localClosedFrameV491||!r.__sourceLatticeExactV489)){
+    return {...out,reason:'not-complete-source-local-frame-tight'};
+  }
+  const names=['L','R','T','B'];
+  const measured=__frameContractsV554.map((q,i)=>{
+    const sm=q&&q.sourceMeasurement,s=sm&&sm.sides;
+    return {i,r:ordered[i],q,sm,s,valid:!!(sm&&sm.reason==='four-source-frame-lines-proven'&&
+      s&&names.every(k=>s[k]&&Number.isFinite(+s[k].inner)&&
+        Number.isFinite(+s[k].outer)&&Number.isFinite(+s[k].thickness)))};
+  });
+  if(measured.filter(v=>v.valid).length<Math.ceil(ordered.length*.75))
+    return {...out,reason:'four-side-source-measurement-coverage-low'};
+  const med=a=>{const s=a.filter(Number.isFinite).sort((x,y)=>x-y);
+    if(!s.length)return NaN;const m=Math.floor(s.length/2);
+    return s.length%2?s[m]:(s[m-1]+s[m])/2;};
+  const mode=a=>{const f=new Map();a.filter(Number.isFinite).map(Math.round)
+    .forEach(v=>f.set(v,(f.get(v)||0)+1));
+    return [...f].sort((a,b)=>b[1]-a[1]||a[0]-b[0])[0]||null;};
+  const thicknessVote=mode(measured.flatMap(v=>v.valid?names.map(k=>+v.s[k].thickness):[]));
+  if(!thicknessVote||thicknessVote[0]<1||
+     thicknessVote[0]>Math.max(12,Math.round(Math.min(
+       med(ordered.map(r=>r.w)),med(ordered.map(r=>r.h)))*.035)))
+    return {...out,reason:'common-thickness-not-thin',thicknessVote};
+  const commonThickness=thicknessVote[0],thicknessTol=Math.max(1,Math.round(commonThickness*.34));
+  const usable=(v,k)=>v.valid&&Math.abs(+v.s[k].thickness-commonThickness)<=thicknessTol;
+  const cluster=(key,tol)=>{
+    const groups=[];
+    measured.slice().sort((a,b)=>key(a.r)-key(b.r)).forEach(v=>{
+      const p=key(v.r);let best=null,dist=Infinity;
+      for(const g of groups){const d=Math.abs(p-g.center);if(d<=tol&&d<dist){best=g;dist=d;}}
+      if(!best){best={center:p,items:[]};groups.push(best);}
+      best.items.push(v);best.center=med(best.items.map(z=>key(z.r)));
+    });
+    return groups.sort((a,b)=>a.center-b.center);
+  };
+  const mw=med(ordered.map(r=>r.w)),mh=med(ordered.map(r=>r.h));
+  const rows=cluster(r=>r.y+r.h/2,Math.max(3,mh*.40));
+  const cols=cluster(r=>r.x+r.w/2,Math.max(3,mw*.40));
+  if(rows.length!==(graph.rows||0)||cols.length!==(graph.cols||0)||
+     rows.length*cols.length!==ordered.length)
+    return {...out,reason:'measured-row-column-population-incomplete',
+      rows:rows.length,cols:cols.length};
+  const axis=(g,k,edge)=>{
+    const vals=g.items.filter(v=>usable(v,k)).map(v=>+v.s[k][edge]);
+    return vals.length>=Math.ceil(g.items.length*.50)?Math.round(med(vals)):NaN;
+  };
+  const rowAxes=rows.map(g=>({T:axis(g,'T','inner'),B:axis(g,'B','inner'),
+    outerT:axis(g,'T','outer'),outerB:axis(g,'B','outer')}));
+  const colAxes=cols.map(g=>({L:axis(g,'L','inner'),R:axis(g,'R','inner'),
+    outerL:axis(g,'L','outer'),outerR:axis(g,'R','outer')}));
+  if([...rowAxes,...colAxes].some(a=>Object.values(a).some(v=>!Number.isFinite(v))))
+    return {...out,reason:'one-or-more-peer-axes-unresolved'};
+  const widths=colAxes.map(a=>a.R-a.L+1),heights=rowAxes.map(a=>a.B-a.T+1);
+  const widthVote=mode(widths),heightVote=mode(heights);
+  if(!widthVote||!heightVote||
+     Math.max(...widths)-Math.min(...widths)>1||
+     Math.max(...heights)-Math.min(...heights)>1||
+     widthVote[0]<20||heightVote[0]<20)
+    return {...out,reason:'absolute-inner-geometry-not-converged',widths,heights};
+  const rowOf=new Map(),colOf=new Map();
+  rows.forEach((g,i)=>g.items.forEach(v=>rowOf.set(v.i,i)));
+  cols.forEach((g,i)=>g.items.forEach(v=>colOf.set(v.i,i)));
+  // With a one-raster source quantisation split, the larger directly proven
+  // extent is the requested repeated geometry.  Smaller axes may join it only
+  // by restoring a verified non-frame transition line below.
+  const targetW=Math.max(...widths),targetH=Math.max(...heights);
+  // A one-raster deficit can be caused by the source line detector assigning
+  // an antialiased shoulder to the frame on one axis.  Test only that single
+  // adjacent source line.  A nearly pure frame body may never be restored.
+  const restorableTransitionLine=(side,pos,a0,a1)=>{
+    const horizontal=side==='T'||side==='B';
+    const x=horizontal?Math.max(0,Math.round(a0)):Math.max(0,Math.round(pos));
+    const y=horizontal?Math.max(0,Math.round(pos)):Math.max(0,Math.round(a0));
+    const w=horizontal?Math.max(1,Math.min(sourceImage.width-x,Math.round(a1-a0+1))):1;
+    const h=horizontal?1:Math.max(1,Math.min(sourceImage.height-y,Math.round(a1-a0+1)));
+    if(x<0||y<0||x+w>sourceImage.width||y+h>sourceImage.height)return false;
+    let d;try{d=ctx.getImageData(x,y,w,h).data;}catch(e){return false;}
+    let deep=0,sum=0,n=0;
+    for(let i=0;i<d.length;i+=4){const g=(d[i]+d[i+1]+d[i+2])/3;
+      sum+=g;n++;if(g<=20)deep++;}
+    const deepRatio=deep/Math.max(1,n),mean=sum/Math.max(1,n);
+    return deepRatio<.985&&mean>24;
+  };
+  const resolvedCols=colAxes.map(a=>{
+    let L=a.L,R=a.R,restored=null;
+    const deficit=targetW-(R-L+1);
+    if(deficit===1){
+      if(restorableTransitionLine('L',L-1,rowAxes[0].T,rowAxes[rowAxes.length-1].B)){
+        L--;restored='L';
+      }else if(restorableTransitionLine('R',R+1,rowAxes[0].T,rowAxes[rowAxes.length-1].B)){
+        R++;restored='R';
+      }
+    }
+    return {...a,L,R,restored};
+  });
+  const resolvedRows=rowAxes.map(a=>{
+    let T=a.T,B=a.B,restored=null;
+    const deficit=targetH-(B-T+1);
+    if(deficit===1){
+      if(restorableTransitionLine('T',T-1,colAxes[0].L,colAxes[colAxes.length-1].R)){
+        T--;restored='T';
+      }else if(restorableTransitionLine('B',B+1,colAxes[0].L,colAxes[colAxes.length-1].R)){
+        B++;restored='B';
+      }
+    }
+    return {...a,T,B,restored};
+  });
+  if(resolvedCols.some(a=>a.R-a.L+1!==targetW)||
+     resolvedRows.some(a=>a.B-a.T+1!==targetH))
+    return {...out,reason:'one-raster-deficit-not-restorable-from-source-transition',
+      widths,heights,target:{w:targetW,h:targetH},resolvedCols,resolvedRows};
+  const candidates=measured.map(v=>{
+    const a=resolvedRows[rowOf.get(v.i)],b=resolvedCols[colOf.get(v.i)];
+    const inner={x:b.L,y:a.T,w:targetW,h:targetH};
+    const outer={x:b.outerL,y:a.outerT,w:b.outerR-b.outerL+1,h:a.outerB-a.outerT+1};
+    return {index:v.i+1,inner,outer,row:rowOf.get(v.i),col:colOf.get(v.i)};
+  });
+  if(candidates.some(c=>c.inner.x<0||c.inner.y<0||
+    c.inner.x+c.inner.w>sourceImage.width||c.inner.y+c.inner.h>sourceImage.height))
+    return {...out,reason:'canonical-inner-out-of-source',candidates};
+  candidates.forEach((c,i)=>{
+    const q=__frameContractsV554[i],r=ordered[i];
+    q.applied=true;q.reason='complete-matrix-measured-inner-axes-v1012';
+    q.outer={...c.outer};q.inner={...c.inner};
+    q.sides={
+      L:{outer:c.outer.x,inner:c.inner.x,thickness:c.inner.x-c.outer.x},
+      R:{outer:c.outer.x+c.outer.w-1,inner:c.inner.x+c.inner.w-1,
+        thickness:c.outer.x+c.outer.w-(c.inner.x+c.inner.w)},
+      T:{outer:c.outer.y,inner:c.inner.y,thickness:c.inner.y-c.outer.y},
+      B:{outer:c.outer.y+c.outer.h-1,inner:c.inner.y+c.inner.h-1,
+        thickness:c.outer.y+c.outer.h-(c.inner.y+c.inner.h)}
+    };
+    q.completeMatrixMeasuredAxesV1012=true;q.padding=false;q.resize=false;
+    r.__completeMatrixMeasuredAxesV1012=true;
+  });
+  return {...out,applied:true,reason:'same-axis-peer-median-of-original-side-measurements',
+    commonThickness,thicknessVote,widths,heights,
+    target:{w:targetW,h:targetH},
+    rows:resolvedRows,cols:resolvedCols,candidates};
+})();
+window.__COMPLETE_MATRIX_MEASURED_AXES_V1012__=__completeMatrixMeasuredAxesV1012;
+
 // V783: on the already-proven strict OpenCV repeated-grid path, reconstruct
 // the crop from the measured SOURCE frame outer rectangle and the repeated
 // four-side thickness.  This is a coordinate ownership correction: no target
@@ -16973,7 +17156,16 @@ window.__REPEATED_FRAME_MAJORITY_CONTRACT_V888__=__repeatedFrameMajorityContract
 const __fastCommonFrameContractV783=(()=>{
   const out={version:'v783-fast-common-source-frame',applied:false,reason:'not-qualified',count:ordered.length,padding:false,resize:false,candidates:[],pixelAudit:[]};
   const fast=window.__OPENCV_LEGACY_FASTPATH_V603__||{};
-  if(cropMode!=='tight'||chosenEngine!=='opencv'||!fast.applied||fast.reason!=='strict-clean-repeated-grid')return {...out,reason:'not-strict-opencv-tight'};
+  // V1008: V831 is the low-resolution repeated-sheet sibling of the legacy
+  // strict-clean path. Both have already proved one complete repeated matrix;
+  // neither label alone owns frame thickness. Let the existing source-pixel
+  // four-side audit below decide whether one canonical inner rectangle exists.
+  // If it does not, the established per-cell path remains unchanged.
+  const fastRepeatedGridV1008=fast.applied&&(
+    fast.reason==='strict-clean-repeated-grid'||
+    fast.reason==='strict-repeated-sheet-grid-v831'
+  );
+  if(cropMode!=='tight'||chosenEngine!=='opencv'||!fastRepeatedGridV1008)return {...out,reason:'not-strict-opencv-tight'};
   if(ordered.length<4||__frameContractsV554.length!==ordered.length)return {...out,reason:'incomplete-contract-set'};
   if(ordered.some(r=>!r||r.__virtualOccupiedCellV668||r.__virtualOpenCvImageBoundsV670||r.__opencvMergedLatticeCellV549||r.__opencvRepeatedEdgeCellV550||Number.isInteger(r.__framePatternGroupV686)))return {...out,reason:'mixed-or-special-cell-present'};
   if(__frameContractsV554.some(q=>!q||q.reason!=='ordinary-thin-source-consensus-evidence-only-v695'||!q.sourceMeasurement||!q.sourceMeasurement.outer||!q.sideModel))return {...out,reason:'ordinary-four-side-consensus-incomplete'};
@@ -16987,6 +17179,64 @@ const __fastCommonFrameContractV783=(()=>{
   let data=null;try{data=ctx.getImageData(0,0,sourceImage.width,sourceImage.height).data;}catch(e){return {...out,reason:'source-pixel-read-failed'};}
   const gray=(x,y)=>{x=Math.round(x);y=Math.round(y);if(x<0||y<0||x>=sourceImage.width||y>=sourceImage.height)return 255;const p=(y*sourceImage.width+x)*4;return (data[p]+data[p+1]+data[p+2])/3;};
   const profile=(rect,side,offset)=>{const horiz=side==='T'||side==='B',len=horiz?rect.w:rect.h,a=Math.max(1,Math.floor(len*.08)),b=Math.max(a+1,Math.ceil(len*.92));let soft=0,dark=0,run=0,maxRun=0,sum=0,n=0;for(let p=a;p<b;p++){const x=side==='L'?rect.x+offset:side==='R'?rect.x+rect.w-1-offset:rect.x+p;const y=side==='T'?rect.y+offset:side==='B'?rect.y+rect.h-1-offset:rect.y+p,g=gray(x,y);sum+=g;n++;if(g<225){soft++;run++;maxRun=Math.max(maxRun,run);}else run=0;if(g<175)dark++;}return {soft:soft/Math.max(1,n),dark:dark/Math.max(1,n),run:maxRun/Math.max(1,n),mean:sum/Math.max(1,n)};};
+  // V1011: classify every side before it may own a FAST source coordinate.
+  // These states deliberately have different authority:
+  //   frame-body  : the selected edge is still the physical frame; reject it
+  //                 from individual ownership and move to the next source row.
+  //   transition  : an antialiased frame-to-picture shoulder; it may own the
+  //                 side only when the opposite side does not claim the same
+  //                 inward correction.
+  //   picture     : the common-thickness coordinate already starts in content.
+  // The scan reuses V783's source pixels and narrow 8..92% strip.  There is no
+  // second image pass and no post-crop pixel correction.
+  const classifyBoundaryV1011=(rect,side)=>{
+    const horiz=side==='T'||side==='B',len=horiz?rect.w:rect.h,a=Math.max(1,Math.floor(len*.08)),b=Math.max(a+1,Math.ceil(len*.92));
+    let n=0,sumOuter=0,sumEdge=0,sumNext=0,sumE2=0,sumN2=0,sumEN=0,positive=0,large=0;
+    let frameLike=0,frameRun=0,maxFrameRun=0,nextPicture=0;const ratios=[];
+    for(let p=a;p<b;p++){
+      const sample=offset=>{
+        const x=side==='L'?rect.x+offset:side==='R'?rect.x+rect.w-1-offset:rect.x+p;
+        const y=side==='T'?rect.y+offset:side==='B'?rect.y+rect.h-1-offset:rect.y+p;
+        return gray(x,y);
+      };
+      const o=sample(-1),e=sample(0),z=sample(1),d=z-e;
+      sumOuter+=o;sumEdge+=e;sumNext+=z;sumE2+=e*e;sumN2+=z*z;sumEN+=e*z;n++;
+      ratios.push(e/Math.max(5,z));
+      if(d>2)positive++;if(d>12)large++;
+      // A frame-body decision is intentionally much stricter than the legacy
+      // soft-frame audit.  It covers V1010 cut 58 (an almost pure black raster)
+      // without treating a dark picture row as frame: both the outside and the
+      // selected row must be frame-coloured, almost the entire side must be
+      // continuous, and the very next row must open decisively into picture.
+      const isFrameLike=o<=20&&e<=24;
+      if(isFrameLike){frameLike++;frameRun++;maxFrameRun=Math.max(maxFrameRun,frameRun);}else frameRun=0;
+      if(z>=e+48&&z>=70)nextPicture++;
+    }
+    if(!n)return {state:'unresolved',ok:false,reason:'empty-profile'};
+    const outerMean=sumOuter/n,edgeMean=sumEdge/n,nextMean=sumNext/n;
+    const edgeVar=Math.max(0,sumE2/n-edgeMean*edgeMean),nextVar=Math.max(0,sumN2/n-nextMean*nextMean);
+    const covariance=sumEN/n-edgeMean*nextMean;
+    const correlation=edgeVar>1&&nextVar>1?covariance/Math.sqrt(edgeVar*nextVar):0;
+    const positiveRatio=positive/n,largeRatio=large/n;
+    const frameRatio=frameLike/n,frameRunRatio=maxFrameRun/n,nextPictureRatio=nextPicture/n;
+    ratios.sort((u,v)=>u-v);const quantile=p=>ratios[Math.min(ratios.length-1,Math.max(0,Math.round((ratios.length-1)*p)))];
+    const ratioQ25=quantile(.25),ratioMedian=quantile(.50),ratioQ75=quantile(.75),ratioIqr=ratioQ75-ratioQ25;
+    const pureFrame=outerMean<=20&&edgeMean<=24&&frameRatio>=.985&&frameRunRatio>=.98&&
+      nextMean>=edgeMean+48&&nextPictureRatio>=.90;
+    const frameOutside=outerMean<175;
+    const between=edgeMean>=outerMean+8&&nextMean>=edgeMean+18;
+    // A JPEG/antialias transition is a nearly constant blend of the next
+    // picture line with the frame colour.  The ratio test is what separates it
+    // from an ordinary dark gradient or an object touching the picture edge.
+    const coherent=positiveRatio>=.92&&ratioMedian>=.40&&ratioMedian<=.90&&ratioIqr<=.12;
+    const transition=frameOutside&&between&&coherent&&!pureFrame;
+    return {
+      state:pureFrame?'frame-body':transition?'transition':'picture',
+      ok:pureFrame||transition,pureFrame,transition,frameOutside,between,coherent,
+      outerMean,edgeMean,nextMean,correlation,positiveRatio,largeRatio,
+      frameRatio,frameRunRatio,nextPictureRatio,ratioMedian,ratioIqr
+    };
+  };
   const candidates=[];let cleanSides=0,totalSides=0;
   __frameContractsV554.forEach((q,i)=>{
     const o=q.sourceMeasurement.outer,outer={x:Math.round(o.x),y:Math.round(o.y),w:mw[0],h:mh[0]};
@@ -17002,8 +17252,48 @@ const __fastCommonFrameContractV783=(()=>{
   const perSide=Object.fromEntries(names.map(s=>[s,candidates.filter(c=>c.sideAudit[s].ok).length]));
   const minSide=Math.ceil(ordered.length*.50),pixelRatio=cleanSides/Math.max(1,totalSides);
   if(candidates.some(c=>!c.inBounds)||pixelRatio<.68||names.some(s=>perSide[s]<minSide))return {...out,reason:'reconstructed-boundary-pixel-audit-failed',outer:{w:mw[0],h:mh[0]},thickness:th,target:{w:mw[0]-th.L-th.R,h:mh[0]-th.T-th.B},pixelRatio,perSide,candidates};
-  candidates.forEach((c,i)=>{const q=__frameContractsV554[i],r=ordered[i];q.inner={...c.inner};q.outer={...c.outer};q.sides={L:{outer:c.outer.x,inner:c.inner.x,thickness:th.L},R:{outer:c.outer.x+c.outer.w-1,inner:c.inner.x+c.inner.w-1,thickness:th.R},T:{outer:c.outer.y,inner:c.inner.y,thickness:th.T},B:{outer:c.outer.y+c.outer.h-1,inner:c.inner.y+c.inner.h-1,thickness:th.B}};q.fastCommonFrameCanonicalV783=true;q.reason='fast-common-source-frame-canonical-v783';q.pixelAuditV783=c.sideAudit;r.__fastCommonFrameCanonicalV783=true;});
-  return {...out,applied:true,reason:'source-outer-minus-common-thickness-proven',outer:{w:mw[0],h:mh[0]},thickness:th,target:{w:mw[0]-th.L-th.R,h:mh[0]-th.T-th.B},pixelRatio,perSide,candidates};
+  // The unanimous outer size owns the extent; L/T own the source origin.
+  // Therefore an isolated R/B shoulder can validate or veto that extent, but
+  // it must never translate L/T and import a frame raster on the opposite
+  // edge (the V1010 cut-58 regression).  A proved frame BODY at R/B means the
+  // common extent itself is wrong, so FAST must fall back instead of hiding it.
+  if(candidates.some(c=>{
+    const a=Object.fromEntries(names.map(s=>[s,classifyBoundaryV1011(c.inner,s)]));
+    c.boundaryAuditV1011=a;
+    return a.R.state==='frame-body'||a.B.state==='frame-body';
+  }))return {...out,reason:'trailing-frame-body-invalidates-common-extent',outer:{w:mw[0],h:mh[0]},thickness:th,target:{w:mw[0]-th.L-th.R,h:mh[0]-th.T-th.B},pixelRatio,perSide,candidates};
+  let boundaryShiftCountV1011=0,pureFrameShiftCountV1011=0,transitionShiftCountV1011=0;
+  candidates.forEach(c=>{
+    const audit=c.boundaryAuditV1011||Object.fromEntries(names.map(s=>[s,classifyBoundaryV1011(c.inner,s)]));
+    let dx=0,dy=0;
+    const inward=s=>audit[s].state==='frame-body'||audit[s].state==='transition';
+    // Only the origin side can correct the origin.  The trailing side is kept
+    // as an independent extent audit and has no authority over the opposite
+    // coordinate.  If both sides claim a transition, the axis is ambiguous
+    // and the established common coordinate is retained.
+    if(inward('L')&&!inward('R'))dx=1;
+    if(inward('T')&&!inward('B'))dy=1;
+    const shifted={x:c.inner.x+dx,y:c.inner.y+dy,w:c.inner.w,h:c.inner.h};
+    const inBounds=shifted.x>=0&&shifted.y>=0&&shifted.x+shifted.w<=sourceImage.width&&shifted.y+shifted.h<=sourceImage.height;
+    c.boundaryAuditV1011=audit;c.boundaryShiftV1011={
+      dx:inBounds?dx:0,dy:inBounds?dy:0,
+      conflictingX:inward('L')&&inward('R'),conflictingY:inward('T')&&inward('B'),
+      trailingRValidation:audit.R.state,trailingBValidation:audit.B.state
+    };
+    c.boundaryAuthorityV1011={
+      L:audit.L.state,R:audit.R.state,T:audit.T.state,B:audit.B.state,
+      x:(inBounds&&dx)?(audit.L.pureFrame||audit.R.pureFrame?'individual-frame-body-rejected':'individual-transition-proven'):'individual-common-thickness',
+      y:(inBounds&&dy)?(audit.T.pureFrame||audit.B.pureFrame?'individual-frame-body-rejected':'individual-transition-proven'):'individual-common-thickness',
+      neighbourSupplementX:false,neighbourSupplementY:false
+    };
+    if(inBounds&&(dx||dy)){
+      c.inner=shifted;boundaryShiftCountV1011++;
+      if([audit.L,audit.R,audit.T,audit.B].some(v=>v.pureFrame))pureFrameShiftCountV1011++;
+      else transitionShiftCountV1011++;
+    }
+  });
+  candidates.forEach((c,i)=>{const q=__frameContractsV554[i],r=ordered[i];q.inner={...c.inner};q.outer={...c.outer};q.sides={L:{outer:c.outer.x,inner:c.inner.x,thickness:th.L},R:{outer:c.outer.x+c.outer.w-1,inner:c.inner.x+c.inner.w-1,thickness:th.R},T:{outer:c.outer.y,inner:c.inner.y,thickness:th.T},B:{outer:c.outer.y+c.outer.h-1,inner:c.inner.y+c.inner.h-1,thickness:th.B}};q.fastCommonFrameCanonicalV783=true;q.fastBoundaryAuthorityV1011=c.boundaryAuthorityV1011;q.reason='fast-common-source-frame-canonical-v783';q.pixelAuditV783=c.sideAudit;r.__fastCommonFrameCanonicalV783=true;});
+  return {...out,applied:true,reason:'source-outer-minus-common-thickness-proven',outer:{w:mw[0],h:mh[0]},thickness:th,target:{w:mw[0]-th.L-th.R,h:mh[0]-th.T-th.B},pixelRatio,perSide,boundaryShiftCountV1011,pureFrameShiftCountV1011,transitionShiftCountV1011,candidates};
 })();
 window.__FAST_COMMON_FRAME_CONTRACT_V783__=__fastCommonFrameContractV783;
 
@@ -17020,6 +17310,7 @@ const __sheetGeometryConvergenceV812=(()=>{
   if(!ordered.length||__frameContractsV554.length!==ordered.length)return {...out,reason:'incomplete-contract-set'};
   const authority=q=>!!(q&&q.applied&&q.inner&&q.outer&&(
     q.noFrameCrop||q.repairSourceAxisV740||q.fastCommonFrameCanonicalV783||
+    q.completeMatrixMeasuredAxesV1012||
     q.sharedSourceConsensusV694||q.structuralCompletionV698
   ));
   if(!__commonContractsV836.length||!__commonContractsV836.every(authority))return {...out,reason:'one-or-more-inner-contracts-not-authoritative'};
@@ -17744,6 +18035,7 @@ const __actualFrameCropOwnerV694=!!(!r.__opencvV883RectifiedBoundary&&__actualFr
   __actualFrameV554.incompleteLatticeRawFrameOwnerV904||
   __actualFrameV554.repeatedFrameMajorityCanonicalV888||
   __actualFrameV554.fastCommonFrameCanonicalV783||
+  __actualFrameV554.completeMatrixMeasuredAxesV1012||
   __actualFrameV554.rfeeCommonSourceFrameV819||
   __actualFrameV554.opencvRepeatedCommonFrameV947||
   __actualFrameV554.rfeeValidatedCommonFrameV915||
@@ -17866,7 +18158,10 @@ if(__provenPencilFrameKeepOuterV999){
   // rectangle. A consensus frame contract may shift phase, but it may never
   // grow beyond that rectangle and import pixels from the neighboring cell.
   // Use a source-coordinate intersection; no padding or resize is involved.
-  if(cropMode==='tight'&&!__actualFrameV554.rfeeCommonSourceFrameV819&&!__actualFrameV554.opencvRepeatedCommonFrameV947&&!__actualFrameV554.gridOuterInnerOwnerV914){
+  if(cropMode==='tight'&&!__actualFrameV554.rfeeCommonSourceFrameV819&&
+    !__actualFrameV554.opencvRepeatedCommonFrameV947&&
+    !__actualFrameV554.completeMatrixMeasuredAxesV1012&&
+    !__actualFrameV554.gridOuterInnerOwnerV914){
     const before={x,y,w,h},ix=Math.max(r.x,x),iy=Math.max(r.y,y),ir=Math.min(r.x+r.w,x+w),ib=Math.min(r.y+r.h,y+h);
     if(ir>ix&&ib>iy){x=ix;y=iy;w=ir-ix;h=ib-iy;debugInfo.v679DetectorIntersection={before,after:{x,y,w,h},detector:{x:r.x,y:r.y,w:r.w,h:r.h},changed:before.x!==x||before.y!==y||before.w!==w||before.h!==h};}
   }
@@ -19954,6 +20249,9 @@ function __v456CoordinateRecropRegularGroups(){
   // after Frame Keep has already committed the physical outer rectangle
   // silently replaces that result with the frame-removed representative size.
   if(cropMode!=='tight')return {applied:false,reason:'not-tight',groups:[]};
+  if(ordered.length>1&&ordered.every(r=>r&&r.__completeMatrixMeasuredAxesV1012))
+    return {applied:false,reason:'v1012-complete-matrix-measured-axes-locked',
+      groups:[],padding:false,resize:false};
   const closed=window.__OPENCV_CLOSED_FRAME_DEBUG_V443__||null;
   if(!closed || !closed.specialSelected) return {applied:false,reason:'not-special-page',groups:[]};
   const cards=[...document.querySelectorAll('#results .card')].slice(__sourceResultStartV469);
@@ -20085,6 +20383,19 @@ function __v463UnifiedResidualFrameRectRefine(){
   const __rfeeCommonFrameOwnedV820=ordered.length>1&&ordered.every(r=>
     r&&r.__rfeeCommonSourceFrameV819===true
   );
+  const __completeMatrixMeasuredAxesOwnedV1012=ordered.length>1&&ordered.every(r=>
+    r&&r.__completeMatrixMeasuredAxesV1012===true
+  );
+  if(__completeMatrixMeasuredAxesOwnedV1012){
+    const __sizesV1012=[...new Set((__v325CutPostTrace||[]).filter(t=>t&&t.finalRect)
+      .map(t=>t.finalRect.w+'x'+t.finalRect.h))];
+    window.__SOURCE_LATTICE_FINAL_OWNERSHIP_V818__={
+      applied:true,reason:'v1012-complete-matrix-measured-axes-locked',
+      count:ordered.length,sizes:__sizesV1012,padding:false,resize:false};
+    return {applied:false,reason:'v1012-complete-matrix-measured-axes-locked',
+      changed:0,groups:[],owner:'V1012-complete-matrix-measured-axes',
+      sizes:__sizesV1012,sizeLocked:true,padding:false,resize:false};
+  }
   if(__rfeeCommonFrameOwnedV820){
     const __sizesV818=[...new Set((__v325CutPostTrace||[]).filter(t=>t&&t.finalRect).map(t=>t.finalRect.w+'x'+t.finalRect.h))];
     window.__SOURCE_LATTICE_FINAL_OWNERSHIP_V818__={applied:true,reason:'v819-common-source-frame-locked-v820',count:ordered.length,sizes:__sizesV818,padding:false,resize:false};
@@ -20122,6 +20433,7 @@ function __v463UnifiedResidualFrameRectRefine(){
     __frameContractsV554.length===ordered.length&&
     __commonOrderedIdxV836.every(i=>{const q=__frameContractsV554[i];return q&&q.applied&&q.inner&&q.inner.w>=20&&q.inner.h>=20&&(
       q.noFrameCrop||q.repairSourceAxisV740||q.fastCommonFrameCanonicalV783||
+      q.completeMatrixMeasuredAxesV1012||
       q.sharedSourceConsensusV694||q.structuralCompletionV698||
       (ordered[i]&&ordered[i].__rfeeCoreBoundaryV807)
     );});
@@ -20954,7 +21266,8 @@ function __v667StructuralCoordinateSizeContract(){
     const r=ordered[Number.isInteger(t.orderedIdx)?t.orderedIdx:t.idx],lg=r&&r.__layoutGroupV452,ek=r&&exactKey(r);
     // V783 already owns the exact source rectangle.  V667 is validation-only
     // for this class and must not shrink the proven clean inner boundary.
-  if(r&&(r.__fastCommonFrameCanonicalV783||r.__repeatedFrameMajorityCanonicalV888))continue;
+  if(r&&(r.__fastCommonFrameCanonicalV783||r.__repeatedFrameMajorityCanonicalV888||
+    r.__completeMatrixMeasuredAxesV1012))continue;
     // V911 ownership boundary: when V580's complete population contains
     // independently measured four-side frames, those measurements own their
     // differing source geometry.  Completeness proves the frames; it does not
