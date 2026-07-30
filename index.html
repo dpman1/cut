@@ -1549,7 +1549,20 @@ window.__CUT_STAGE_TRACE_V236__ = [];
 window.__CUT_DIAG_V964__ = null;
 function __safeDiagCloneV964(value){ return value; }
 function __stageLogV236(){}
-function __diagRafYieldV964(){ return new Promise(resolve=>requestAnimationFrame(resolve)); }
+function __diagRafYieldV964(){
+  return new Promise(resolve=>{
+    let done=false,timer=null;
+    const finish=()=>{
+      if(done)return;
+      done=true;
+      if(timer!==null)clearTimeout(timer);
+      resolve();
+    };
+    timer=setTimeout(finish,80);
+    if(typeof requestAnimationFrame==='function')requestAnimationFrame(finish);
+    else finish();
+  });
+}
 function __copyTextWithFallbackV325(text, statusEl){}
 function __compactMobileDebugPayloadV326(payload){ return {}; }
 function __setMobileDebugLog(title, payload){}
@@ -5094,7 +5107,7 @@ try{
 }catch(e){}
 // Let the closed processing state paint before any sample loading or CUT work starts.
 try{
-  await new Promise(resolve=>requestAnimationFrame(resolve));
+  await __diagRafYieldV964('run-start-paint');
 }catch(e){}
 
 // Empty-state UX only: when the initial/cleared state has no files, load the built-in sample
@@ -5140,7 +5153,14 @@ async function __waitForVisibleThumbImagesReadyV289(){
   const settled=await Promise.all(wraps.map(async(w,idx)=>{
     if(w.__sourceImage&&w.__sourceImage.width&&w.__sourceImage.height)return {ok:true,img:w.__sourceImage,index:idx,fileName:(w.__sourceFileV647&&w.__sourceFileV647.name)||''};
     if(w.__sourceReadyPromiseV647){
-      const state=await w.__sourceReadyPromiseV647;
+      const state=await Promise.race([
+        Promise.resolve(w.__sourceReadyPromiseV647).catch(error=>({
+          ok:false,error:String(error&&error.message||error||'wrapper-decode-error')
+        })),
+        new Promise(resolve=>setTimeout(()=>resolve({
+          ok:false,error:'wrapper-decode-timeout-v1046'
+        }),3000))
+      ]);
       return {...state,index:idx};
     }
     return {ok:false,index:idx,fileName:(w.__sourceFileV647&&w.__sourceFileV647.name)||'',error:'missing-wrapper-decode-contract'};
@@ -5326,6 +5346,7 @@ if(!orderedSources.length){
 }
 
 results.innerHTML = '';
+try{ results.style.visibility='hidden'; }catch(_visibilityErr){}
 extracted = [];
 try{
   window.__CUT_OUTPUT_REVEAL_GENERATION_V1043__=(window.__CUT_OUTPUT_REVEAL_GENERATION_V1043__||0)+1;
@@ -5998,7 +6019,10 @@ function __gridDirectFastLinePreflightV256(img,options={}){
   const mp = +(W * H / 1000000).toFixed(2);
   if(!W || !H) return {abort:false, reason:'no-image-size', megapixels:mp};
 
-  const maxDim = 1200;
+  // V1046: this plane selects an engine only; final crop coordinates are
+  // always re-measured by the selected engine.  A smaller routing proxy keeps
+  // the same thresholds while avoiding a 1.44 MP synchronous scan on mobile.
+  const maxDim = 800;
   const scale = Math.min(1, maxDim / Math.max(W,H));
   const sw = Math.max(1, Math.round(W * scale));
   const sh = Math.max(1, Math.round(H * scale));
@@ -7008,8 +7032,10 @@ let __v907GraphCandidateV1017=null;
 const __v491V831OpenCvOwnerV1031=!!(
   __routeFamilyV1017==='opencv'&&
   __requestedEngineModeV895==='auto'&&
-  window.__V491_V831_ROUTE_CERTIFICATE_V1031__&&
-  window.__V491_V831_ROUTE_CERTIFICATE_V1031__.applied&&
+  ((window.__V491_V831_ROUTE_CERTIFICATE_V1031__&&
+    window.__V491_V831_ROUTE_CERTIFICATE_V1031__.applied)||
+   (window.__COMPLETE_FRAMED_GRID_ROUTE_V1018__&&
+    window.__COMPLETE_FRAMED_GRID_ROUTE_V1018__.applied))&&
   window.__GRID_LOCAL_CLOSED_FRAME_V491__&&
   window.__GRID_LOCAL_CLOSED_FRAME_V491__.image&&
   window.__GRID_LOCAL_CLOSED_FRAME_V491__.image.w===sourceImage.width&&
@@ -7926,6 +7952,19 @@ __stageLogV236('ENGINE_SELECT_START');
 let engineMode = __engineModeEarlyV256;
 __stageLogV236('ENGINE_MODE',{engineMode});
 let cvBoxes = filtered.map(r => ({...r, __engine:'opencv'}));
+// V1046: AUTO already owns this structural class with a current-source
+// periodic/outside-frame certificate. Reuse that negative preflight evidence
+// and enter the unchanged ordinary RFEE path without rescanning fallback-only
+// frame, block-grid, or pencil-grid candidates.
+const __periodicOutsideAutoGridFastV1046=!!(
+  __autoRouterRfeeOwnershipV1017&&
+  __routerFactV1017&&
+  __routerFactV1017.periodicOutsideFrameGrid===true&&
+  __routerFactV1017.completeBackgroundIslandsVeto===false&&
+  __routerFactV1017.projection&&
+  __routerFactV1017.projection.periodicLattice===true&&
+  __routerFactV1017.projection.frameOutsideInk===true
+);
 
 // One source-frame proof is shared by every engine.  It may refine geometry,
 // but it never selects an engine.  A strict repeated local-frame set replaces
@@ -7937,7 +7976,8 @@ const __currentAutoV491RecommendationV1040=
     ?window.__AUTO_V491_FRAME_RECOMMENDATION_V935__:null;
 const __sharedLocalClosedV854=
   (__currentAutoV491RecommendationV1040&&
-   __currentAutoV491RecommendationV1040.applied)
+   (__currentAutoV491RecommendationV1040.applied||
+    __periodicOutsideAutoGridFastV1046))
     ?__currentAutoV491RecommendationV1040
     :(__cachedSourceGraphV951&&
       __cachedSourceGraphV951.image&&
@@ -8427,7 +8467,10 @@ function __shouldUseBlockGridFallbackV358(normalBoxes, blockInfo, mode){
 //
 const __blockGridInfoV358 = __opencvFastStableV603
   ? {version:'v604-skip',applied:false,reason:'legacy-fastpath-accepted',count:0,boxes:[]}
-  : (engineMode==='opencv'
+  : (__periodicOutsideAutoGridFastV1046
+      ? {version:'v1046-periodic-outside-router-skip',applied:false,
+          reason:'periodic-outside-auto-grid-ordinary-rfee-owner',count:0,boxes:[]}
+      : engineMode==='opencv'
       ? {version:'v966-direct-opencv-skip',applied:false,reason:'direct-opencv-contract-never-consumes-blockgrid',count:0,boxes:[]}
       : __detectBlockGridFallbackV358(sourceImage));
 window.__BLOCKGRID_FALLBACK_V358__ = __blockGridInfoV358;
@@ -9610,7 +9653,10 @@ if (engineMode === 'rfee' && __borderlessRuledSheetV972.applied) {
   // V473: GRID 직접 선택에서 일반 RFEE가 노이즈로 실패하기 전에,
   // 매우 제한적인 V472 옅은 희소 격자만 독립 preflight로 먼저 확인한다.
   // OpenCV 직접 선택에는 이 경로가 절대 실행되지 않는다.
-  window.__EXPLICIT_PENCIL_FRAME_GRID_V480__=__detectExplicitPencilFrameGridV480();
+  window.__EXPLICIT_PENCIL_FRAME_GRID_V480__=__periodicOutsideAutoGridFastV1046
+    ?{applied:false,reason:'periodic-outside-auto-grid-ordinary-rfee-owner',
+      rects:[],padding:false,resize:false}
+    :__detectExplicitPencilFrameGridV480();
   // V501: evaluate the same source-confirmed local closed-frame graph before
   // global RFEE.  Selection reuses V492's strict credibility contract; merely
   // finding several rectangles is not enough to bypass RFEE.
@@ -9640,7 +9686,10 @@ if (engineMode === 'rfee' && __borderlessRuledSheetV972.applied) {
       __publishCurrentPassEvidenceV1040({applied:true,reason:'v492-strict-credible-local-closed-preflight',count:filtered.length,dominantRatio:+__lcDominantRatioV501.toFixed(3),sizeSpread:__lcSpreadV501,verticalKernelV501:__gridLocalClosedPreflightV501.verticalKernelV501||null});
     window.__GRID_LOCAL_CLOSED_FRAME_V491__=__gridLocalClosedPreflightV501;
   } else {
-  window.__PALE_PENCIL_LATTICE_V472__=__detectPalePencilLatticeV472();
+  window.__PALE_PENCIL_LATTICE_V472__=__periodicOutsideAutoGridFastV1046
+    ?{applied:false,reason:'periodic-outside-auto-grid-ordinary-rfee-owner',
+      rects:[],padding:false,resize:false}
+    :__detectPalePencilLatticeV472();
   if(window.__PALE_PENCIL_LATTICE_V472__.applied){
     const resolvedV734=await __resolvePaleGridCanonicalV734(window.__PALE_PENCIL_LATTICE_V472__,null);
     rfeeBoxes=resolvedV734.boxes;
@@ -9651,7 +9700,9 @@ if (engineMode === 'rfee' && __borderlessRuledSheetV972.applied) {
     window.__GRID_PALE_PENCIL_FASTPATH_V473__={applied:true,reason:resolvedV734.selected?'explicit-grid-pale-topology-legacy-coordinate-v725':'explicit-grid-pale-pencil-lattice',count:filtered.length,debug:window.__PALE_PENCIL_LATTICE_V472__};
   } else
   // V361: native GRID thick-frame matrix. Avoid RFEE candidate explosion without using OpenCV as engine.
-  if(__shouldUseThickFrameGridNativeV360(__resolveThickFrameGridV1024())){
+  if(!(window.__AUTO_PREFLIGHT_ROUTER_V898__&&
+       window.__AUTO_PREFLIGHT_ROUTER_V898__.periodicOutsideFrameGrid===true)&&
+     __shouldUseThickFrameGridNativeV360(__resolveThickFrameGridV1024())){
     rfeeBoxes = __thickFrameGridInfoV360.boxes.map(r=>({...r, __engine:'rfee-thick-frame-grid'}));
     filtered = rfeeBoxes;
     chosenEngine = 'rfee-thick-frame-grid';
@@ -9712,8 +9763,6 @@ if (engineMode === 'rfee' && __borderlessRuledSheetV972.applied) {
         if(stalled > 3000){
           window.__RFEE_CANCELLED__ = true;
           clearInterval(__rfeeWatchdog);
-          run.dataset.busy='0';
-          run.classList.remove('working');
           const payload = {stage:p.stage, seq:p.seq, stalledMs:Math.round(stalled), progress:p, log:window.__RFEE_PROGRESS_LOG__||[]};
           window.__RFEE_STALL__ = payload;
           console.warn('[RFEE_STALL]', JSON.stringify(payload));
@@ -17827,20 +17876,9 @@ function createSourceOutputRenderPlan({writeOutput,bindDownload,rollbackOutput})
     if(typeof requestAnimationFrame==='function')
       requestAnimationFrame(finish);
   });
-  const startVisibilityV1044=()=>{
-    if(visibilityPromiseV1043)return visibilityPromiseV1043;
-    const generation=Number(window.__CUT_OUTPUT_REVEAL_GENERATION_V1043__||0);
-    // V1045: load readiness controls display only. One global cursor reveals
-    // loaded cards in DOM order after batch commit; no source or CUT completion
-    // waits for a hidden mobile thumbnail's onload callback.
-    window.__CUT_OUTPUT_REVEAL_ACTIVE_GENERATION_V1045__=generation;
-    visibilityPromiseV1043=afterPaintFrameV1044().then(()=>{
-      if(Number(window.__CUT_OUTPUT_REVEAL_GENERATION_V1043__||0)===generation)
-        __scheduleLoadedOutputPollV1045();
-      return snapshot();
-    });
-    return visibilityPromiseV1043;
-  };
+  // V1046: restore V1040's direct display contract.  Visibility must never
+  // own CUT completion, source progress, or a generation-wide polling loop.
+  const startVisibilityV1044=()=>Promise.resolve(snapshot());
   return {
     stage(card,index,initialCanvas,rect,writer='initial-output'){
       if(materialized)throw new Error('Source output render plan is already materialized');
@@ -17861,19 +17899,11 @@ function createSourceOutputRenderPlan({writeOutput,bindDownload,rollbackOutput})
       entries.push(entry);
       byIndex.set(index,entry);
       byCard.set(card,entry);
-      card.__revealLoadedOutputV1045=()=>{
-        if(!card.isConnected||card.dataset.outputPendingV1042!=='1')return;
-        card.hidden=false;
-        delete card.dataset.outputPendingV1042;
-        card.dataset.outputReadyV1042='1';
-        card.dataset.outputReadyV1043='loaded-contiguous-v1045';
-        metrics.progressivePublishesV1042++;
-        metrics.loadedGatedPublishesV1044++;
-      };
-      // V1042: a staged card has no image yet. Keep it out of the visible
-      // result grid until its encoded PNG has actually loaded.
-      card.hidden=true;
-      card.dataset.outputPendingV1042='1';
+      // Do not pre-create a hidden contiguous queue. A delayed thumbnail must
+      // not hide already-generated later cuts or make the result grid appear
+      // truncated.
+      card.hidden=false;
+      delete card.dataset.outputPendingV1042;
       metrics.staged++;
       metrics.retainedInitialCanvasPixels+=initialCanvas.width*initialCanvas.height;
       metrics.peakRetainedInitialCanvasPixels=Math.max(
@@ -17947,6 +17977,19 @@ function createSourceOutputRenderPlan({writeOutput,bindDownload,rollbackOutput})
         img.dataset.outputHeightV1020=String(height);
         writeOutput(entry.index,url);
         bindDownload(entry.card,img);
+        if(__deferCardDecodeV1020){
+          // V1040 contract: assigning the final data URL is the publication
+          // boundary. No onload/decode/poll promise may block this source.
+          img.src=url;
+          entry.card.hidden=false;
+          delete entry.card.dataset.outputPendingV1042;
+          entry.card.dataset.outputReadyV1042='1';
+          entry.card.dataset.outputReadyV1043='direct-v1046';
+          metrics.materialized++;
+          return Promise.resolve({
+            entry,ok:true,reason:'direct-data-url-publication-v1046'
+          });
+        }
         // V1043: this promise owns encode/load validity only. The card stays
         // hidden; final-source postprocessing can continue at the established
         // speed, and startVisibilityV1043 later decodes the final img.src in
@@ -18006,33 +18049,20 @@ function createSourceOutputRenderPlan({writeOutput,bindDownload,rollbackOutput})
       // canvas pixels, PNG MIME type, URL form and download binding are kept.
       // Any unsupported or failed async encode falls back to the established
       // synchronous toDataURL call for that one canvas.
-      const encodeAsyncV1030=canvas=>new Promise((resolve,reject)=>{
-        let settled=false,watchdog=null;
-        const clearWatchdog=()=>{
-          if(watchdog!==null){clearTimeout(watchdog);watchdog=null;}
-        };
+      const encodeAsyncV1030=canvas=>new Promise(resolve=>{
+        let settled=false;
         const finish=url=>{
           if(settled)return;
-          settled=true;clearWatchdog();resolve(url);
-        };
-        const fail=error=>{
-          if(settled)return;
-          settled=true;clearWatchdog();reject(error);
+          settled=true;resolve(url);
         };
         const fallback=()=>{
-          if(settled)return;
           metrics.syncEncodeFallbacksV1030++;
-          try{finish(canvas.toDataURL('image/png'));}
-          catch(error){fail(error);}
+          finish(canvas.toDataURL('image/png'));
         };
         if(typeof canvas.toBlob!=='function'||typeof FileReader!=='function'){
           fallback();return;
         }
         try{
-          // A browser encoder callback should be quick for one cut. If a
-          // mobile WebView drops the callback entirely, recover this one item
-          // without stalling the remaining queue forever.
-          watchdog=setTimeout(fallback,5000);
           canvas.toBlob(blob=>{
             if(settled)return;
             if(!blob){fallback();return;}
@@ -18046,7 +18076,6 @@ function createSourceOutputRenderPlan({writeOutput,bindDownload,rollbackOutput})
                 }else fallback();
               };
               reader.onerror=fallback;
-              reader.onabort=fallback;
               reader.readAsDataURL(blob);
             }catch(e){fallback();}
           },'image/png');
@@ -25291,6 +25320,7 @@ __cleanupCvMatsV257();
 __stageLogV236('MULTI_SOURCE_ALL_DONE_V664',{expected:orderedSources.length,audited:(window.__MULTI_SOURCE_AUTO_AUDIT_V647__||[]).length,cuts:extracted.length});
 window.__MULTI_SOURCE_BATCH_COMMITTED_V873__=true;
 renumber();
+try{ results.style.visibility=''; }catch(_visibilityErr){}
 try{
   const __startersV1043=window.__CUT_OUTPUT_VISIBILITY_STARTERS_V1043__||[];
   window.__CUT_OUTPUT_VISIBILITY_STARTERS_V1043__=[];
@@ -25304,6 +25334,7 @@ try{ window.dispatchEvent(new CustomEvent('__cut_batch_committed_v873')); }catch
     __setMobileDebugLog('[CUT_FATAL]', {message:String(__runErr && (__runErr.message||__runErr)), stack:String((__runErr&&__runErr.stack)||'').slice(0,1200), stageTrace:window.__CUT_STAGE_TRACE_V236__||[]});
   }catch(e){}
 }finally{
+  try{ results.style.visibility=''; }catch(_visibilityErr){}
   run.dataset.busy='0';
   run.classList.remove('working');
   document.body.classList.remove('__cut_auto_sample_running');
