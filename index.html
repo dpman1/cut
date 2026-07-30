@@ -1906,6 +1906,7 @@ files.forEach((f,idx)=>{
  let __resolveSourceReadyV647;
  wrap.__sourceFileV647=f;
  wrap.__sourceReadyStateV647='reading';
+ wrap.__sourceDecodeCancelledV1044=false;
  wrap.__sourceReadyPromiseV647=new Promise(resolve=>{__resolveSourceReadyV647=resolve;});
 
  const r=new FileReader();
@@ -1920,6 +1921,11 @@ files.forEach((f,idx)=>{
 
    const img=new Image();
    img.onload=()=>{
+      if(wrap.__sourceDecodeCancelledV1044 || !multiPreview.contains(wrap)){
+        wrap.__sourceReadyStateV647='cancelled';
+        if(__resolveSourceReadyV647){__resolveSourceReadyV647({ok:false,error:'source-decode-cancelled-v1044',fileName:f&&f.name||''});__resolveSourceReadyV647=null;}
+        return;
+      }
       sourceImages[startIndex+idx]=img;
       try{ img.__fileName = f && f.name || ('image_'+(startIndex+idx)); img.__imageIndexV422 = startIndex+idx; }catch(e){}
       wrap.__sourceImage = img;
@@ -1935,6 +1941,7 @@ files.forEach((f,idx)=>{
 
    del.onclick=(ev2)=>{
       ev2.stopPropagation();
+      wrap.__sourceDecodeCancelledV1044=true;
 
       const thumbs=[...multiPreview.children];
       const pos=thumbs.indexOf(wrap);
@@ -2115,6 +2122,7 @@ function __waitForSampleFileRouteDecode(expectedCount, oldRunDisabled){
 
 function __clearCutWorkspace(resetOptions){
  document.body.classList.remove('__cut_completed');
+ [...multiPreview.children].forEach(wrap=>{try{wrap.__sourceDecodeCancelledV1044=true;}catch(e){}});
  sourceFiles=[];
  sourceImages=[];
  sourceImage=null;
@@ -2158,13 +2166,30 @@ async function __loadBuiltinSamplesThroughFileRoute(resetOptions){
    file.files = dt.files;
    file.dispatchEvent(new Event('change'));
    window.__SAMPLE_LOAD_PROMISE__ = __waitForSampleFileRouteDecode(sampleFiles.length, oldRunDisabled);
-   await window.__SAMPLE_LOAD_PROMISE__;
-   try{ if(window.__SOURCE_PREVIEW_READY_PROMISE__) await window.__SOURCE_PREVIEW_READY_PROMISE__; }catch(e){}
+   const allSamplesDecoded=await window.__SAMPLE_LOAD_PROMISE__;
+   if(!allSamplesDecoded){
+     // The file-route watcher is already bounded to eight seconds. Do not
+     // enter CUT with an unresolved wrapper promise: one lost mobile WebView
+     // image callback can otherwise keep busy/working alive forever.
+     console.warn('built-in sample decode timed out; aborting this CUT run');
+     __clearCutWorkspace(false);
+     sampleBtn.disabled = false;
+     run.disabled = oldRunDisabled;
+     return false;
+   }
+   // Every processing image is decoded now. Selecting the last preview is
+   // presentation-only and must not become a second, unbounded CUT barrier.
+   try{
+     if(window.__SOURCE_PREVIEW_READY_PROMISE__)
+       Promise.resolve(window.__SOURCE_PREVIEW_READY_PROMISE__).catch(()=>{});
+   }catch(e){}
+   return true;
  }catch(e){
    console.error('sample file-route load failed', e);
    sampleBtn.disabled = false;
    run.disabled = oldRunDisabled;
    alert('샘플 불러오기 실패: 브라우저가 내부 File 경로 생성을 막았습니다.');
+   return false;
  }
 }
 
@@ -5078,15 +5103,15 @@ try{
 if(!sourceFiles.length && !sourceImages.length && multiPreview.children.length===0){
   const __autoSampleOptionState = __captureCutOptionStateForAutoSample();
   document.body.classList.add('__cut_auto_sample_running');
+  let __autoSampleLoadedV1044=false;
   try{
-    await __loadBuiltinSamplesThroughFileRoute(false);
-    try{ if(window.__SAMPLE_LOAD_PROMISE__) await window.__SAMPLE_LOAD_PROMISE__; }catch(e){}
+    __autoSampleLoadedV1044=await __loadBuiltinSamplesThroughFileRoute(false);
     __restoreCutOptionStateForAutoSample(__autoSampleOptionState);
   }catch(e){
     console.error('auto sample on empty CUT failed', e);
     __restoreCutOptionStateForAutoSample(__autoSampleOptionState);
   }
-  if(!sourceImages.length && multiPreview.children.length===0){
+  if(!__autoSampleLoadedV1044 || !sourceImages.length || multiPreview.children.length===0){
     document.body.classList.remove('__cut_auto_sample_running');
     document.body.classList.remove('__cut_processing');
     run.dataset.busy='0';
@@ -17684,6 +17709,7 @@ function createSourceOutputRenderPlan({writeOutput,bindDownload,rollbackOutput})
     previewFailuresV1042:0,
     decodeGatedPublishesV1043:0,
     orderedRevealWaitsV1043:0,
+    loadedGatedPublishesV1044:0,
     encodeFailuresV1042:0,
     rolledBackOutputsV1042:0,
     indexMismatches:0,
@@ -17723,7 +17749,7 @@ function createSourceOutputRenderPlan({writeOutput,bindDownload,rollbackOutput})
       updates:entry.updates.map(update=>({writer:update.writer,requestedIndex:update.requestedIndex,rect:{...update.rect}}))
     }))
   });
-  const afterPaintFrameV1043=()=>new Promise(resolve=>{
+  const afterPaintFrameV1044=()=>new Promise(resolve=>{
     let done=false,timer=null;
     const finish=()=>{
       if(done)return;
@@ -17731,13 +17757,14 @@ function createSourceOutputRenderPlan({writeOutput,bindDownload,rollbackOutput})
       if(timer!==null)clearTimeout(timer);
       resolve();
     };
-    // A background WebView may throttle RAF. `decode()` already proves the
-    // pixels; the timer only prevents visibility bookkeeping from stalling.
+    // The result image has already completed its load contract. Wait for one
+    // paint opportunity only; a throttled/background WebView must never hold
+    // CUT completion or the result grid indefinitely.
     timer=setTimeout(finish,80);
     if(typeof requestAnimationFrame==='function')
-      requestAnimationFrame(()=>requestAnimationFrame(finish));
+      requestAnimationFrame(finish);
   });
-  const startVisibilityV1043=()=>{
+  const startVisibilityV1044=()=>{
     if(visibilityPromiseV1043)return visibilityPromiseV1043;
     const ordered=orderedMaterializedEntries.slice().sort((a,b)=>a.index-b.index);
     if(!ordered.length){
@@ -17745,92 +17772,25 @@ function createSourceOutputRenderPlan({writeOutput,bindDownload,rollbackOutput})
       return visibilityPromiseV1043;
     }
     const generation=Number(window.__CUT_OUTPUT_REVEAL_GENERATION_V1043__||0);
-    const state=new Map(ordered.map(entry=>[entry,'pending']));
-    let cursor=0,gateOpen=false,done=false,resolveDone;
-    const localDone=new Promise(resolve=>{resolveDone=resolve;});
-    const finish=()=>{
-      if(done)return;
-      done=true;
-      resolveDone(snapshot());
-    };
-    const revealContiguous=()=>{
-      if(done||!gateOpen)return;
+    visibilityPromiseV1043=afterPaintFrameV1044().then(()=>{
       if(Number(window.__CUT_OUTPUT_REVEAL_GENERATION_V1043__||0)!==generation){
-        finish();
-        return;
+        return snapshot();
       }
-      while(cursor<ordered.length){
-        const entry=ordered[cursor];
-        const status=state.get(entry);
-        if(status==='pending')break;
-        if(status==='decoded'&&entry.card&&entry.card.isConnected){
-          entry.card.hidden=false;
-          delete entry.card.dataset.outputPendingV1042;
-          entry.card.dataset.outputReadyV1042='1';
-          entry.card.dataset.outputReadyV1043='decoded-and-ordered';
-          metrics.progressivePublishesV1042++;
-          metrics.decodeGatedPublishesV1043++;
-        }
-        cursor++;
+      // materialize() has already awaited every image's onload/naturalWidth
+      // contract and removed failed cards. Reveal the connected entries as one
+      // paint batch. Do not call img.decode(): launching one decode per cut can
+      // saturate or permanently stall a mobile WebView decoder.
+      for(const entry of ordered){
+        if(!entry.card||!entry.card.isConnected)continue;
+        entry.card.hidden=false;
+        delete entry.card.dataset.outputPendingV1042;
+        entry.card.dataset.outputReadyV1042='1';
+        entry.card.dataset.outputReadyV1043='loaded-and-batch-painted-v1044';
+        metrics.progressivePublishesV1042++;
+        metrics.loadedGatedPublishesV1044++;
       }
-      if(cursor>=ordered.length)finish();
-    };
-    const previous=window.__CUT_OUTPUT_REVEAL_CHAIN_V1043__||Promise.resolve();
-    window.__CUT_OUTPUT_REVEAL_CHAIN_V1043__=
-      Promise.resolve(previous).catch(()=>{}).then(()=>localDone);
-    Promise.resolve(previous).catch(()=>{}).then(()=>{
-      gateOpen=true;
-      revealContiguous();
+      return snapshot();
     });
-    const decodeStable=async entry=>{
-      if(!entry.card||!entry.card.isConnected){
-        state.set(entry,'skipped');
-        revealContiguous();
-        return;
-      }
-      const img=entry.card.querySelector('img');
-      if(!img){
-        state.set(entry,'failed');
-        revealContiguous();
-        return;
-      }
-      for(let attempt=0;attempt<3;attempt++){
-        const before=String(img.currentSrc||img.src||'');
-        if(!before)break;
-        try{
-          if(typeof img.decode==='function')await img.decode();
-          else if(!(img.complete&&Number(img.naturalWidth)>0)){
-            await new Promise(resolve=>{
-              let settled=false;
-              const complete=()=>{if(settled)return;settled=true;clearTimeout(timer);resolve();};
-              const timer=setTimeout(complete,8000);
-              img.addEventListener('load',complete,{once:true});
-              img.addEventListener('error',complete,{once:true});
-            });
-          }
-        }catch(_e){}
-        await afterPaintFrameV1043();
-        const after=String(img.currentSrc||img.src||'');
-        if(after!==before)continue;
-        if(img.complete&&Number(img.naturalWidth)>0&&Number(img.naturalHeight)>0){
-          if(ordered[cursor]!==entry)metrics.orderedRevealWaitsV1043++;
-          state.set(entry,'decoded');
-          revealContiguous();
-          return;
-        }
-      }
-      entry.card.dataset.outputFailedV1042='image-decode-not-ready-v1043';
-      metrics.previewFailuresV1042++;
-      state.set(entry,'failed');
-      revealContiguous();
-    };
-    // Decode every source in the background. Only visibility is chained across
-    // sources, so slow preview painting never serialises CUT analysis.
-    Promise.all(ordered.map(decodeStable)).then(revealContiguous,()=>{
-      ordered.forEach(entry=>{if(state.get(entry)==='pending')state.set(entry,'failed');});
-      revealContiguous();
-    });
-    visibilityPromiseV1043=localDone;
     return visibilityPromiseV1043;
   };
   return {
@@ -18090,7 +18050,7 @@ function createSourceOutputRenderPlan({writeOutput,bindDownload,rollbackOutput})
       if(decodes.length)await Promise.all(decodes);
       return snapshot();
     },
-    startVisibility:startVisibilityV1043,
+    startVisibility:startVisibilityV1044,
     snapshot
   };
 }
@@ -25187,9 +25147,8 @@ try{
 __stageLogV236('RENDER_DONE',{cuts:extracted.length});
 renumber();
 try{
-  // Queue only. Starting dozens of explicit decodes while the next source is
-  // running can compete with OpenCV on mobile; the batch starts every queued
-  // preview after source analysis is complete, without awaiting it.
+  // Queue only. Every result already passed img.onload/naturalWidth; after the
+  // batch, reveal those loaded cards without launching explicit decodes.
   window.__CUT_OUTPUT_VISIBILITY_STARTERS_V1043__=
     window.__CUT_OUTPUT_VISIBILITY_STARTERS_V1043__||[];
   window.__CUT_OUTPUT_VISIBILITY_STARTERS_V1043__.push(
