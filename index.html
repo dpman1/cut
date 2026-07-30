@@ -21,13 +21,6 @@
 <meta name="twitter:title" content="Frame CUT">
 <meta name="twitter:description" content="콘티, 스토리보드 자동 분할 도구">
 <meta name="twitter:image" content="https://cut.entercredit.kr/ecut-banner-v2.jpg">
-<!-- V1041: OpenCV coordinate ownership follow-up.
-     A complete, directly observed V549 matrix may recover a residual 1px
-     antialias shoulder only from existing V491/V554 evidence and cached source
-     pixels. Restored, virtual, peer-repaired and ambiguous matrices are
-     excluded. In V1032 sparse matrices, directly proven V554 source axes
-     outrank common-inset fallback and remain protected from V456/V667.
-     No extra Mat, morphology, contour pass, padding or resize is introduced. -->
 <!-- V1040: execution authority is run/source/pass scoped. AUTO evidence may
      survive only the selected engine replay for the same source; GRID/RFEE
      pass state may never authorize a later OpenCV pass or a later CUT run.
@@ -18412,229 +18405,21 @@ const __repairSourceAxesV740=(()=>{
   const rawWidths=[...colAxes.values()].map(q=>q.R.inner-q.L.inner+1),rawHeights=[...rowAxes.values()].map(q=>q.B.inner-q.T.inner+1);
   const medW=__medV554(rawWidths),medH=__medV554(rawHeights),spreadW=Math.max(...rawWidths)-Math.min(...rawWidths),spreadH=Math.max(...rawHeights)-Math.min(...rawHeights);
   const geometryStable=spreadW<=Math.max(2,Math.round(medW*.015))&&spreadH<=Math.max(2,Math.round(medH*.015));
-  // V1041: the V1026 linear OpenCV path can preserve the correct complete
-  // lattice while its common observed envelope lands directly on the physical
-  // frame. In that case V686 reports zero phase delta and V740 used to discard
-  // the already-measured V554 row/column axes. Recover only the residual
-  // antialias shoulder, independently per axis, from the current inner line and
-  // its immediately adjacent outward frame core. This is limited to a complete
-  // observed (never restored/virtual) V549 matrix with one stable pattern.
-  // It reuses the source canvas and reads narrow 1px strips only.
-  const __axisShoulderFallbackV1041=(()=>{
-    const z={version:'v1041-v740-axis-aa-shoulder-fallback',applied:false,
-      reason:'not-qualified',x:false,y:false,vertical:[],horizontal:[],
-      padding:false,resize:false};
-    const phaseZeroOnly=completePattern&&patterns.every(p=>{
-      const m=p.sideModel,L=Number(m.L.delta),R=Number(m.R.delta),
-        T=Number(m.T.delta),B=Number(m.B.delta);
-      return (L===0||L===1)&&(R===0||R===-1)&&
-        (T===0||T===1)&&(B===0||B===-1)&&
-        (L===0||R===0||T===0||B===0);
-    });
-    const observedKeys=new Set(),observedRows=new Set(),observedCols=new Set();
-    let observedTopologyUnique=true;
-    for(const v of cells){
-      const c=v.r&&v.r.__opencvCellV549;
-      if(!c||!Number.isInteger(c.row)||!Number.isInteger(c.col)){
-        observedTopologyUnique=false;break;
-      }
-      const key=c.row+':'+c.col;
-      if(observedKeys.has(key)){observedTopologyUnique=false;break;}
-      observedKeys.add(key);observedRows.add(c.row);observedCols.add(c.col);
-    }
-    observedTopologyUnique=observedTopologyUnique&&
-      observedRows.size*observedCols.size===cells.length;
-    const modeVote=a=>{
-      const f=new Map();
-      a.filter(Number.isFinite).map(Math.round)
-        .forEach(v=>f.set(v,(f.get(v)||0)+1));
-      return [...f].sort((p,q)=>q[1]-p[1]||p[0]-q[0])[0]||null;
-    };
-    const widthVote=modeVote(rawWidths),heightVote=modeVote(rawHeights);
-    const stableModeSupport=!!(widthVote&&heightVote&&
-      widthVote[1]>=Math.ceil(rawWidths.length*.55)&&
-      heightVote[1]>=Math.ceil(rawHeights.length*.55));
-    const graphRectsV1041=__sharedLocalClosedV854&&
-      Array.isArray(__sharedLocalClosedV854.rects)
-        ?__sharedLocalClosedV854.rects:[];
-    const directComplete=completePattern&&patternIds.size===1&&geometryStable&&
-      phaseZeroOnly&&observedTopologyUnique&&stableModeSupport&&
-      graphRectsV1041.length===cells.length&&
-      cells.length===ordered.length&&cells.every(v=>v.r&&
-        v.r.__opencvMergedLatticeCellV549&&
-        v.r.__opencvConditionalCoordinateOwnerV675==='regular-lattice-common'&&
-        !(v.r.__opencvCellV549&&v.r.__opencvCellV549.restored)&&
-        !(v.r.__opencvCellV549&&v.r.__opencvCellV549.ownerMissing)&&
-        !v.r.__opencvActualCellBoundsV673&&
-        !v.r.__virtualOccupiedCellV668&&!v.r.__virtualOpenCvImageBoundsV670&&
-        !v.r.__independentClosedFrameV836&&
-        !v.r.__recoveredSingleMissingV557&&
-        !v.r.__recoveredDirectSourceFrameV905&&
-        !v.r.__phaseCanonicalMatrixV1032&&
-        !v.r.__peerAxisRepairV1032&&!v.r.__threeSideFrameV592);
-    z.directComplete=directComplete;z.phaseZeroOnly=phaseZeroOnly;
-    z.observedTopologyUnique=observedTopologyUnique;
-    z.modeSupport={width:widthVote,height:heightVote,
-      requiredW:Math.ceil(rawWidths.length*.55),
-      requiredH:Math.ceil(rawHeights.length*.55),
-      applied:stableModeSupport};
-    if(phaseComplete){z.reason='ordinary-v743-phase-already-proven';return z;}
-    if(!directComplete){z.reason='not-complete-direct-v549-matrix';return z;}
-    // Match V1040's existing physical prior: V491 must stop exactly one
-    // raster beyond the common V554 stroke, with paired sides agreeing.
-    const representativeInsets={},representativeInsetSupport={};
-    for(const side of ['L','R','T','B']){
-      const values=graphRectsV1041.map(r=>Number(r&&
-        r.__sourceFrameInsetsV489&&r.__sourceFrameInsetsV489[side]))
-        .filter(Number.isFinite);
-      representativeInsets[side]=values.length
-        ?Math.round(__medV554(values)):NaN;
-      representativeInsetSupport[side]=values.length;
-    }
-    const commonThicknessVote=modeVote(cells.flatMap(v=>
-      ['L','R','T','B'].map(side=>Number(
-        __rawFrameContractsV554[v.i]&&
-        __rawFrameContractsV554[v.i].sides&&
-        __rawFrameContractsV554[v.i].sides[side]&&
-        __rawFrameContractsV554[v.i].sides[side].thickness
-      )).filter(n=>Number.isFinite(n)&&n>=1&&n<=8)
-    ));
-    const commonThickness=commonThicknessVote&&commonThicknessVote[0];
-    z.representativeInsets=representativeInsets;
-    z.representativeInsetSupport=representativeInsetSupport;
-    z.commonThicknessVote=commonThicknessVote;
-    const insetSupportNeed=Math.ceil(cells.length*.55);
-    const thicknessSupportNeed=Math.ceil(cells.length*4*.55);
-    z.insetSupportNeed=insetSupportNeed;
-    z.thicknessSupportNeed=thicknessSupportNeed;
-    const sourcePriorSupport=commonThicknessVote&&
-      commonThicknessVote[1]>=thicknessSupportNeed&&
-      ['L','R','T','B'].every(s=>
-        representativeInsetSupport[s]>=insetSupportNeed);
-    const insetPriorX=sourcePriorSupport&&Number.isFinite(commonThickness)&&
-      Math.min(representativeInsets.L,representativeInsets.R)===
-        commonThickness+1&&
-      Math.abs(representativeInsets.L-representativeInsets.R)<=1;
-    const insetPriorY=sourcePriorSupport&&Number.isFinite(commonThickness)&&
-      Math.min(representativeInsets.T,representativeInsets.B)===
-        commonThickness+1&&
-      Math.abs(representativeInsets.T-representativeInsets.B)<=1;
-    z.insetPrior={x:insetPriorX,y:insetPriorY};
-    if(!insetPriorX||!insetPriorY){
-      z.reason='v491-v554-one-raster-inset-prior-not-proven';return z;
-    }
-    const profile=(horizontal,pos,segments)=>{
-      pos=Math.round(pos);
-      const lo=Math.max(0,Math.min(...segments.map(s=>Math.round(s[0]))));
-      const hi=Math.min(horizontal?sourceImage.width-1:sourceImage.height-1,
-        Math.max(...segments.map(s=>Math.round(s[1]))));
-      if(pos<0||pos>=(horizontal?sourceImage.height:sourceImage.width)||hi<lo)
-        return null;
-      const shared=__sourcePixelsV554&&
-        __sourcePixelsV554.length>=sourceImage.width*sourceImage.height*4;
-      let data=shared?__sourcePixelsV554:null;
-      if(!data)try{
-        data=horizontal
-          ?ctx.getImageData(lo,pos,hi-lo+1,1).data
-          :ctx.getImageData(pos,lo,1,hi-lo+1).data;
-      }catch(e){return null;}
-      let total=0,cover=0,strong=0,core=0,sumDark=0,runTotal=0;
-      for(const span of segments){
-        const a0=Math.max(lo,Math.round(span[0])),b0=Math.min(hi,Math.round(span[1]));
-        const trim=Math.max(1,Math.floor(Math.max(1,b0-a0+1)*.08));
-        const a=Math.min(b0,a0+trim),b=Math.max(a,b0-trim);
-        let run=0,maxRun=0;
-        for(let p=a;p<=b;p++){
-          const i=shared
-            ?(horizontal?(pos*sourceImage.width+p)*4:
-              (p*sourceImage.width+pos)*4)
-            :(p-lo)*4;
-          const g=(data[i]+data[i+1]+data[i+2])/3;
-          if(g<226){cover++;run++;maxRun=Math.max(maxRun,run);sumDark+=255-g;}
-          else run=0;
-          if(g<185)strong++;if(g<120)core++;total++;
-        }
-        runTotal+=maxRun;
-      }
-      return total?{coverage:cover/total,continuity:runTotal/total,
-        strongRatio:strong/total,coreRatio:core/total,
-        avgDark:sumDark/Math.max(1,cover)}:null;
-    };
-    const evidence=(side,pos,segments)=>{
-      const horizontal=side==='T'||side==='B',leading=side==='L'||side==='T';
-      const edge=profile(horizontal,pos,segments);
-      const frameCore=profile(horizontal,pos+(leading?-1:1),segments);
-      if(!edge||!frameCore)return {applied:false,reason:'profile-unavailable'};
-      const lineOk=edge.coverage>=.62&&edge.continuity>=.50;
-      const darkOk=edge.strongRatio>=.18||edge.avgDark>=38;
-      const notJustTone=edge.avgDark>=26;
-      const relative=edge.coverage>=Math.max(.52,frameCore.coverage*.55);
-      const coreProven=frameCore.coverage>=.62&&frameCore.continuity>=.50&&
-        (frameCore.strongRatio>=.18||frameCore.avgDark>=38);
-      const coreSeparated=frameCore.avgDark-edge.avgDark>=30&&
-        edge.coreRatio<=.35;
-      return {applied:lineOk&&darkOk&&notJustTone&&relative&&coreProven&&
-          coreSeparated,
-        side,pos,edge,frameCore,lineOk,darkOk,notJustTone,relative,coreProven,
-        coreSeparated};
-    };
-    const rowSpans=[...rowAxes.values()].map(a=>[a.T.inner,a.B.inner]);
-    const colSpans=[...colAxes.values()].map(a=>[a.L.inner,a.R.inner]);
-    [...colAxes.values()].forEach((a,index)=>z.vertical.push({index,
-      leading:evidence('L',a.L.inner,rowSpans),
-      trailing:evidence('R',a.R.inner,rowSpans)}));
-    [...rowAxes.values()].forEach((a,index)=>z.horizontal.push({index,
-      leading:evidence('T',a.T.inner,colSpans),
-      trailing:evidence('B',a.B.inner,colSpans)}));
-    const vertical=z.vertical.flatMap(v=>[v.leading,v.trailing]);
-    const horizontal=z.horizontal.flatMap(v=>[v.leading,v.trailing]);
-    z.verticalRatio=vertical.filter(v=>v.applied).length/Math.max(1,vertical.length);
-    z.horizontalRatio=horizontal.filter(v=>v.applied).length/Math.max(1,horizontal.length);
-    z.verticalSides={leading:z.vertical.filter(v=>v.leading.applied).length,
-      trailing:z.vertical.filter(v=>v.trailing.applied).length};
-    z.horizontalSides={leading:z.horizontal.filter(v=>v.leading.applied).length,
-      trailing:z.horizontal.filter(v=>v.trailing.applied).length};
-    z.x=z.verticalRatio>=.30&&z.verticalSides.leading>=1&&
-      z.verticalSides.trailing>=1&&medW-2>=20;
-    z.y=z.horizontalRatio>=.30&&z.horizontalSides.leading>=1&&
-      z.horizontalSides.trailing>=1&&medH-2>=20;
-    // Keep V740 atomic. Publishing only one repaired axis would also lock the
-    // untouched axis away from its established V846 owner.
-    z.applied=z.x&&z.y;
-    z.reason=z.applied?'direct-v549-axis-aa-shoulder-proven':
-      'axis-aa-shoulder-support-incomplete';
-    return z;
-  })();
-  Object.assign(out,{patternComplete:completePattern,phaseComplete,
-    patternGroups:patternIds.size,
-    geometry:{rawWidths,rawHeights,medianW:medW,medianH:medH,spreadW,spreadH},
-    axisShoulderFallbackV1041:__axisShoulderFallbackV1041});
-  if(patternIds.size!==1||(!phaseComplete&&!__axisShoulderFallbackV1041.applied)||!geometryStable){
-    out.reason=patternIds.size!==1?'multiple-v549-frame-patterns':
-      (!geometryStable?'v549-inner-geometry-unstable':
-        'four-side-repeated-frame-phase-not-proven');
-    out.rows=[...rowAxes];out.cols=[...colAxes];return out;
-  }
+  Object.assign(out,{patternComplete:completePattern,phaseComplete,patternGroups:patternIds.size,geometry:{rawWidths,rawHeights,medianW:medW,medianH:medH,spreadW,spreadH}});
+  if(patternIds.size!==1||!phaseComplete||!geometryStable){out.reason=patternIds.size!==1?'multiple-v549-frame-patterns':(!phaseComplete?'four-side-repeated-frame-phase-not-proven':'v549-inner-geometry-unstable');out.rows=[...rowAxes];out.cols=[...colAxes];return out;}
   const mode=(a)=>{const f=new Map();a.forEach(v=>f.set(v,(f.get(v)||0)+1));return [...f].sort((x,y)=>y[1]-x[1]||x[0]-y[0])[0][0];};
-  const ownX=phaseComplete||__axisShoulderFallbackV1041.x;
-  const ownY=phaseComplete||__axisShoulderFallbackV1041.y;
-  const target={w:ownX?mode(rawWidths)-2:null,h:ownY?mode(rawHeights)-2:null};
-  if((ownX&&target.w<20)||(ownY&&target.h<20)){out.reason='v549-normalized-inner-not-credible';return out;}
+  const target={w:mode(rawWidths)-2,h:mode(rawHeights)-2};
+  if(target.w<20||target.h<20){out.reason='v549-normalized-inner-not-credible';return out;}
   for(const v of cells){
     const y=rowAxes.get(v.row),x=colAxes.get(v.col),L={...x.L},R={...x.R},T={...y.T},B={...y.B};
     const measured={x:L.inner,y:T.inner,w:R.inner-L.inner+1,h:B.inner-T.inner+1};
-    const cellTarget={w:ownX?target.w:measured.w,h:ownY?target.h:measured.h};
-    const dx=measured.w-cellTarget.w,dy=measured.h-cellTarget.h;
+    const dx=measured.w-target.w,dy=measured.h-target.h;
     if(dx<0||dy<0||dx>spreadW+2||dy>spreadH+2){out.reason='v549-target-would-require-padding';out.contracts.clear();return out;}
-    const inner={x:measured.x+Math.ceil(dx/2),y:measured.y+Math.ceil(dy/2),w:cellTarget.w,h:cellTarget.h};
+    const inner={x:measured.x+Math.ceil(dx/2),y:measured.y+Math.ceil(dy/2),w:target.w,h:target.h};
     const outer={x:L.outer,y:T.outer,w:R.outer-L.outer+1,h:B.outer-T.outer+1};
-    out.contracts.set(v.i,{row:v.row,col:v.col,sides:{L,R,T,B},measuredInnerV743:measured,inner,outer,normalizedTargetV743:cellTarget,sharedAxisResidualV743:{L:Math.ceil(dx/2),R:Math.floor(dx/2),T:Math.ceil(dy/2),B:Math.floor(dy/2)},axisShoulderFallbackV1041:__axisShoulderFallbackV1041.applied});
+    out.contracts.set(v.i,{row:v.row,col:v.col,sides:{L,R,T,B},measuredInnerV743:measured,inner,outer,normalizedTargetV743:target,sharedAxisResidualV743:{L:Math.ceil(dx/2),R:Math.floor(dx/2),T:Math.ceil(dy/2),B:Math.floor(dy/2)}});
   }
-  out.applied=out.contracts.size===cells.length;
-  out.reason=out.applied?(__axisShoulderFallbackV1041.applied?
-    'complete-v549-axis-aa-geometry-proven-v1041':
-    'all-v549-four-side-geometry-proven-v743'):'v549-axis-contract-incomplete';
-  out.target=target;out.rows=[...rowAxes].map(([row,q])=>({row,T:q.T,B:q.B}));out.cols=[...colAxes].map(([col,q])=>({col,L:q.L,R:q.R}));out.count=out.contracts.size;return out;
+  out.applied=out.contracts.size===cells.length;out.reason=out.applied?'all-v549-four-side-geometry-proven-v743':'v549-axis-contract-incomplete';out.target=target;out.rows=[...rowAxes].map(([row,q])=>({row,T:q.T,B:q.B}));out.cols=[...colAxes].map(([col,q])=>({col,L:q.L,R:q.R}));out.count=out.contracts.size;return out;
 })();
 window.__V740_V549_SOURCE_AXES__={...__repairSourceAxesV740,contracts:[...__repairSourceAxesV740.contracts].map(([index,q])=>({index:index+1,...q}))};
 const __frameContractsV554=ordered.map((r,i)=>{
@@ -19416,8 +19201,6 @@ const __completeMatrixMeasuredAxesV1012=(()=>{
   // manufactured. This admits the complete Lineage population while Beauty's
   // five restored cells remain owned by its existing V549/V846 path.
   const __opencvObservedCellsV1040=ordered.map(r=>r&&r.__opencvCellV549);
-  const __restoredV549PresentV1041=
-    __opencvObservedCellsV1040.some(c=>c&&c.restored);
   const __opencvObservedKeysV1040=new Set();
   const __graphDominantRatioV1040=graph
     ?(Number(graph.dominantCount)||0)/
@@ -19447,8 +19230,7 @@ const __completeMatrixMeasuredAxesV1012=(()=>{
     })&&
     __opencvObservedKeysV1040.size===ordered.length
   );
-  if(cropMode!=='tight'||__restoredV549PresentV1041||
-     !__sharedCompleteMatrixV1012||
+  if(cropMode!=='tight'||!__sharedCompleteMatrixV1012||
      ordered.length!==(graph&&graph.count||0)||
      __frameContractsV554.length!==ordered.length||
      (!__directLocalMatrixOwnerV1040&&!__directObservedOpenCvMatrixV1040)){
@@ -19570,28 +19352,13 @@ const __completeMatrixMeasuredAxesV1012=(()=>{
     if(audits.some(a=>names.some(k=>!a.sides[k].applied)))
       return {...out,reason:'direct-matrix-common-inset-still-frame-line',
         commonInsets,target,audits};
-    // V1041: a directly proven V554 source rectangle is stronger than the
-    // sparse-matrix common inset. Preserve those observed cells verbatim;
-    // only cells whose direct side measurement failed use the existing
-    // common-inset fallback. No pixel work or topology changes are added.
     const candidates=ordered.map((r,i)=>{
-      const v=measured[i];
-      const directV554AxesPreservedV1041=!!(
-        v&&v.valid&&v.sm&&v.sm.outer&&v.sm.inner
-      );
-      const fallbackOuter={x:Math.round(r.x),y:Math.round(r.y),
+      const outer={x:Math.round(r.x),y:Math.round(r.y),
         w:outerW[0],h:outerH[0]};
-      const fallbackInner={x:fallbackOuter.x+commonInsets.L,
-        y:fallbackOuter.y+commonInsets.T,w:target.w,h:target.h};
-      const roundedRect=q=>({x:Math.round(+q.x),y:Math.round(+q.y),
-        w:Math.round(+q.w),h:Math.round(+q.h)});
-      const outer=directV554AxesPreservedV1041
-        ?roundedRect(v.sm.outer):fallbackOuter;
-      const inner=directV554AxesPreservedV1041
-        ?roundedRect(v.sm.inner):fallbackInner;
+      const inner={x:outer.x+commonInsets.L,
+        y:outer.y+commonInsets.T,w:target.w,h:target.h};
       const c=r.__localFrameCellV491;
-      return {index:i+1,inner,outer,row:c.row,col:c.col,
-        directV554AxesPreservedV1041};
+      return {index:i+1,inner,outer,row:c.row,col:c.col};
     });
     if(candidates.some(c=>c.inner.x<0||c.inner.y<0||
        c.inner.x+c.inner.w>W||c.inner.y+c.inner.h>H))
@@ -19600,29 +19367,23 @@ const __completeMatrixMeasuredAxesV1012=(()=>{
     candidates.forEach((c,i)=>{
       const q=__frameContractsV554[i],r=ordered[i];
       q.applied=true;
-      q.reason=c.directV554AxesPreservedV1041
-        ?'direct-v554-source-axes-preserved-v1041'
-        :'direct-complete-source-matrix-common-insets-v1032';
+      q.reason='direct-complete-source-matrix-common-insets-v1032';
       q.outer={...c.outer};q.inner={...c.inner};
       q.sides={
         L:{outer:c.outer.x,inner:c.inner.x,
-          thickness:c.inner.x-c.outer.x},
+          thickness:commonInsets.L},
         R:{outer:c.outer.x+c.outer.w-1,
-          inner:c.inner.x+c.inner.w-1,
-          thickness:c.outer.x+c.outer.w-(c.inner.x+c.inner.w)},
+          inner:c.inner.x+c.inner.w-1,thickness:commonInsets.R},
         T:{outer:c.outer.y,inner:c.inner.y,
-          thickness:c.inner.y-c.outer.y},
+          thickness:commonInsets.T},
         B:{outer:c.outer.y+c.outer.h-1,
-          inner:c.inner.y+c.inner.h-1,
-          thickness:c.outer.y+c.outer.h-(c.inner.y+c.inner.h)}
+          inner:c.inner.y+c.inner.h-1,thickness:commonInsets.B}
       };
       q.completeMatrixMeasuredAxesV1012=true;
       q.directCompleteSourceMatrixV1032=true;
-      q.directV554AxesPreservedV1041=c.directV554AxesPreservedV1041;
       q.padding=false;q.resize=false;
       r.__completeMatrixMeasuredAxesV1012=true;
       r.__directCompleteSourceMatrixCropV1032=true;
-      r.__directV554AxesPreservedV1041=c.directV554AxesPreservedV1041;
     });
     return {...out,applied:true,
       reason:'direct-complete-source-matrix-common-insets-v1032',
@@ -23190,8 +22951,7 @@ function __v456CoordinateRecropRegularGroups(){
   const buckets=new Map();
   traces.forEach(t=>{
     const r=ordered[Number.isInteger(t.orderedIdx)?t.orderedIdx:t.idx], g=r&&r.__layoutGroupV452;
-    if(!r||r.__directV554AxesPreservedV1041||
-       !g||!g.sizeConfident||g.count<4||r.__darkPanel)return;
+    if(!r||!g||!g.sizeConfident||g.count<4||r.__darkPanel)return;
     if(!buckets.has(g.id))buckets.set(g.id,[]);
     buckets.get(g.id).push({t,r,card:cards[t.idx]});
   });
@@ -24198,8 +23958,7 @@ function __v667StructuralCoordinateSizeContract(){
     // V783 already owns the exact source rectangle.  V667 is validation-only
     // for this class and must not shrink the proven clean inner boundary.
   if(r&&(r.__fastCommonFrameCanonicalV783||r.__repeatedFrameMajorityCanonicalV888||
-    r.__completeMatrixMeasuredAxesFinalV1040||
-    r.__directV554AxesPreservedV1041))continue;
+    r.__completeMatrixMeasuredAxesFinalV1040))continue;
     // V911 ownership boundary: when V580's complete population contains
     // independently measured four-side frames, those measurements own their
     // differing source geometry.  Completeness proves the frames; it does not
