@@ -17686,6 +17686,68 @@ const __v186Trace = [];
 const __gridFrameTrace = [];
 const __v325CutPostTrace = [];
 
+function __flushLoadedOutputCardsV1045(){
+  if(window.__CUT_OUTPUT_FLUSHING_V1045__)return;
+  const generation=Number(window.__CUT_OUTPUT_REVEAL_GENERATION_V1043__||0);
+  if(Number(window.__CUT_OUTPUT_REVEAL_ACTIVE_GENERATION_V1045__)!==generation)
+    return;
+  window.__CUT_OUTPUT_FLUSHING_V1045__=true;
+  try{
+    const cards=[...document.querySelectorAll('#results .card')];
+    // One generation-wide observation pass replaces one polling timer per card.
+    for(const card of cards){
+      if(card.dataset.outputPendingV1042!=='1'||
+         card.dataset.outputLoadedV1043==='1')continue;
+      const img=card.querySelector('img');
+      if(img&&img.complete&&Number(img.naturalWidth)>0&&
+         typeof card.__markNaturalOutputReadyV1045==='function'){
+        card.__markNaturalOutputReadyV1045();
+      }
+    }
+    for(const card of cards){
+      if(card.dataset.outputPendingV1042!=='1')continue;
+      // A later card may never overtake an earlier pending thumbnail.
+      if(card.dataset.outputLoadedV1043!=='1')break;
+      if(typeof card.__revealLoadedOutputV1045==='function')
+        card.__revealLoadedOutputV1045();
+    }
+  }finally{
+    window.__CUT_OUTPUT_FLUSHING_V1045__=false;
+  }
+}
+
+function __scheduleLoadedOutputPollV1045(){
+  const generation=Number(window.__CUT_OUTPUT_REVEAL_GENERATION_V1043__||0);
+  const old=window.__CUT_OUTPUT_POLL_V1045__;
+  if(old&&old.generation===generation&&old.timer!==null)return;
+  if(old&&old.timer!==null)clearTimeout(old.timer);
+  const state={generation,timer:null,startedAt:performance.now()};
+  window.__CUT_OUTPUT_POLL_V1045__=state;
+  const tick=()=>{
+    if(Number(window.__CUT_OUTPUT_REVEAL_GENERATION_V1043__||0)!==generation||
+       Number(window.__CUT_OUTPUT_REVEAL_ACTIVE_GENERATION_V1045__)!==generation){
+      state.timer=null;
+      return;
+    }
+    __flushLoadedOutputCardsV1045();
+    const pending=[...document.querySelectorAll(
+      '#results .card[data-output-pending-v1042="1"]'
+    )];
+    if(!pending.length){
+      state.timer=null;
+      return;
+    }
+    if(performance.now()-state.startedAt>=30000){
+      for(const card of pending)
+        card.dataset.outputPreviewUnavailableV1045='1';
+      state.timer=null;
+      return;
+    }
+    state.timer=setTimeout(tick,120);
+  };
+  tick();
+}
+
 function createSourceOutputRenderPlan({writeOutput,bindDownload,rollbackOutput}){
   const entries=[];
   const byIndex=new Map();
@@ -17694,6 +17756,7 @@ function createSourceOutputRenderPlan({writeOutput,bindDownload,rollbackOutput})
   let materialized=false;
   let orderedMaterializedEntries=[];
   let visibilityPromiseV1043=null;
+  let readinessPromiseV1045=Promise.resolve();
   const metrics={
     staged:0,
     rectUpdates:0,
@@ -17766,29 +17829,14 @@ function createSourceOutputRenderPlan({writeOutput,bindDownload,rollbackOutput})
   });
   const startVisibilityV1044=()=>{
     if(visibilityPromiseV1043)return visibilityPromiseV1043;
-    const ordered=orderedMaterializedEntries.slice().sort((a,b)=>a.index-b.index);
-    if(!ordered.length){
-      visibilityPromiseV1043=Promise.resolve(snapshot());
-      return visibilityPromiseV1043;
-    }
     const generation=Number(window.__CUT_OUTPUT_REVEAL_GENERATION_V1043__||0);
+    // V1045: load readiness controls display only. One global cursor reveals
+    // loaded cards in DOM order after batch commit; no source or CUT completion
+    // waits for a hidden mobile thumbnail's onload callback.
+    window.__CUT_OUTPUT_REVEAL_ACTIVE_GENERATION_V1045__=generation;
     visibilityPromiseV1043=afterPaintFrameV1044().then(()=>{
-      if(Number(window.__CUT_OUTPUT_REVEAL_GENERATION_V1043__||0)!==generation){
-        return snapshot();
-      }
-      // materialize() has already awaited every image's onload/naturalWidth
-      // contract and removed failed cards. Reveal the connected entries as one
-      // paint batch. Do not call img.decode(): launching one decode per cut can
-      // saturate or permanently stall a mobile WebView decoder.
-      for(const entry of ordered){
-        if(!entry.card||!entry.card.isConnected)continue;
-        entry.card.hidden=false;
-        delete entry.card.dataset.outputPendingV1042;
-        entry.card.dataset.outputReadyV1042='1';
-        entry.card.dataset.outputReadyV1043='loaded-and-batch-painted-v1044';
-        metrics.progressivePublishesV1042++;
-        metrics.loadedGatedPublishesV1044++;
-      }
+      if(Number(window.__CUT_OUTPUT_REVEAL_GENERATION_V1043__||0)===generation)
+        __scheduleLoadedOutputPollV1045();
       return snapshot();
     });
     return visibilityPromiseV1043;
@@ -17813,6 +17861,15 @@ function createSourceOutputRenderPlan({writeOutput,bindDownload,rollbackOutput})
       entries.push(entry);
       byIndex.set(index,entry);
       byCard.set(card,entry);
+      card.__revealLoadedOutputV1045=()=>{
+        if(!card.isConnected||card.dataset.outputPendingV1042!=='1')return;
+        card.hidden=false;
+        delete card.dataset.outputPendingV1042;
+        card.dataset.outputReadyV1042='1';
+        card.dataset.outputReadyV1043='loaded-contiguous-v1045';
+        metrics.progressivePublishesV1042++;
+        metrics.loadedGatedPublishesV1044++;
+      };
       // V1042: a staged card has no image yet. Keep it out of the visible
       // result grid until its encoded PNG has actually loaded.
       card.hidden=true;
@@ -17903,14 +17960,18 @@ function createSourceOutputRenderPlan({writeOutput,bindDownload,rollbackOutput})
           const finish=(ok,reason)=>{
             if(settled)return;
             settled=true;clear();
+            try{delete entry.card.__markNaturalOutputReadyV1045;}catch(_e){}
             if(ok){
               entry.card.dataset.outputLoadedV1043='1';
+              __flushLoadedOutputCardsV1045();
             }else{
               entry.card.dataset.outputFailedV1042=String(reason||'image-load-failed');
               metrics.previewFailuresV1042++;
             }
             resolve({entry,ok,reason});
           };
+          entry.card.__markNaturalOutputReadyV1045=()=>
+            finish(true,'image-natural-size-global-poll');
           const assign=()=>{
             if(settled)return;
             img.onload=()=>finish(true,'image-load');
@@ -17924,7 +17985,9 @@ function createSourceOutputRenderPlan({writeOutput,bindDownload,rollbackOutput})
                 assign();
               },0);
             };
-            timer=setTimeout(()=>finish(false,'image-load-timeout'),8000);
+            if(!__deferCardDecodeV1020){
+              timer=setTimeout(()=>finish(false,'image-load-timeout'),8000);
+            }
             img.src=url;
             if(img.complete&&Number(img.naturalWidth)>0)
               Promise.resolve().then(()=>finish(true,'image-complete'));
@@ -17992,6 +18055,7 @@ function createSourceOutputRenderPlan({writeOutput,bindDownload,rollbackOutput})
       if(__deferCardDecodeV1020&&orderedEntries.length>1){
         const concurrency=Math.min(2,orderedEntries.length);
         metrics.encodeConcurrencyV1030=concurrency;
+        const encodedV1045=new Array(orderedEntries.length);
         let next=0;
         const worker=async()=>{
           while(true){
@@ -18002,10 +18066,10 @@ function createSourceOutputRenderPlan({writeOutput,bindDownload,rollbackOutput})
             const width=canvas.width,height=canvas.height;
             try{
               const url=await encodeAsyncV1030(canvas);
-              // Fixed DOM cards and fixed extracted[] indices make
-              // completion-order publication safe; result/download order does
-              // not depend on which of the two encoders finishes first.
-              publishPromises.push(commitEncoded(entry,url,width,height));
+              // Keep native image decoding out of the encoder window. The two
+              // PNG workers finish first; URLs are assigned in stable index
+              // order afterwards, matching the pre-V1042 output contract.
+              encodedV1045[i]={entry,url,width,height};
             }catch(error){
               metrics.encodeFailuresV1042++;
               failedEntries.push({entry,reason:String(error&&error.message||error)});
@@ -18016,6 +18080,12 @@ function createSourceOutputRenderPlan({writeOutput,bindDownload,rollbackOutput})
           }
         };
         await Promise.all(Array.from({length:concurrency},()=>worker()));
+        for(const encoded of encodedV1045){
+          if(!encoded)continue;
+          publishPromises.push(commitEncoded(
+            encoded.entry,encoded.url,encoded.width,encoded.height
+          ));
+        }
       }else{
         for(const entry of orderedEntries){
           const canvas=prepareCanvas(entry);
@@ -18032,22 +18102,61 @@ function createSourceOutputRenderPlan({writeOutput,bindDownload,rollbackOutput})
           }
         }
       }
-      const publishResults=await Promise.all(publishPromises);
-      for(const result of publishResults)
-        if(!result.ok)failedEntries.push({entry:result.entry,reason:result.reason});
-      if(failedEntries.length){
-        const failed=[...new Map(failedEntries.map(v=>[v.entry.index,v])).values()]
-          .sort((a,b)=>b.entry.index-a.entry.index);
-        for(const failure of failed){
-          try{failure.entry.card.remove();}catch(_e){}
-          try{rollbackOutput(failure.entry.index,failure.reason);}catch(_e){}
-          metrics.rolledBackOutputsV1042++;
+      const settlePublishedV1045=(publishResults,includePreviewFailures=true)=>{
+        if(includePreviewFailures)for(const result of publishResults)
+          if(!result.ok)failedEntries.push({entry:result.entry,reason:result.reason});
+        if(failedEntries.length){
+          const failed=[...new Map(failedEntries.map(v=>[v.entry.index,v])).values()]
+            .sort((a,b)=>b.entry.index-a.entry.index);
+          for(const failure of failed){
+            try{failure.entry.card.remove();}catch(_e){}
+            try{rollbackOutput(failure.entry.index,failure.reason);}catch(_e){}
+            metrics.rolledBackOutputsV1042++;
+          }
+          try{renumber();}catch(_e){}
         }
-        try{renumber();}catch(_e){}
-      }
-      orderedMaterializedEntries=orderedEntries.filter(entry=>entry.card&&entry.card.isConnected);
+        orderedMaterializedEntries=orderedEntries.filter(
+          entry=>entry.card&&entry.card.isConnected
+        );
+        return snapshot();
+      };
       materialized=true;
-      if(decodes.length)await Promise.all(decodes);
+      if(__deferCardDecodeV1020){
+        // V1044 still awaited all result-img onload watchdogs here, so three
+        // originals could serialize three 8-second waits on a mobile WebView.
+        // Encoding and URL assignment are complete; finish load validation and
+        // failure rollback in the display queue without blocking CUT.
+        orderedMaterializedEntries=orderedEntries.filter(
+          entry=>entry.card&&entry.card.isConnected
+        );
+        // Encode failures are real output failures and are resolved now.
+        // A later thumbnail onerror is display-only: never splice a valid PNG
+        // after following sources have already claimed their output indices.
+        settlePublishedV1045([],false);
+        readinessPromiseV1045=Promise.all(publishPromises)
+          .then(publishResults=>{
+            for(const result of publishResults){
+              if(!result.ok&&result.entry&&result.entry.card)
+                result.entry.card.dataset.outputPreviewUnavailableV1045='1';
+            }
+            orderedMaterializedEntries=orderedEntries.filter(
+              entry=>entry.card&&entry.card.isConnected
+            );
+            return snapshot();
+          })
+          .catch(error=>{
+            console.warn('[SOURCE_OUTPUT_BACKGROUND_READY_V1045_FAIL]',error);
+            orderedMaterializedEntries=orderedEntries.filter(
+              entry=>entry.card&&entry.card.isConnected
+            );
+            return snapshot();
+          });
+      }else{
+        const publishResults=await Promise.all(publishPromises);
+        settlePublishedV1045(publishResults);
+        if(decodes.length)await Promise.all(decodes);
+        readinessPromiseV1045=Promise.resolve(snapshot());
+      }
       return snapshot();
     },
     startVisibility:startVisibilityV1044,
