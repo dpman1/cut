@@ -1551,16 +1551,32 @@ function __safeDiagCloneV964(value){ return value; }
 function __stageLogV236(){}
 function __diagRafYieldV964(){
   return new Promise(resolve=>{
-    let done=false,timer=null;
+    let done=false,timer=null,channel=null;
     const finish=()=>{
       if(done)return;
       done=true;
       if(timer!==null)clearTimeout(timer);
+      if(channel){
+        channel.port1.onmessage=null;
+        try{channel.port1.close();channel.port2.close();}catch(_e){}
+        channel=null;
+      }
       resolve();
     };
-    timer=setTimeout(finish,80);
-    if(typeof requestAnimationFrame==='function')requestAnimationFrame(finish);
-    else finish();
+    // V1047: CUT progress must not depend on a render frame. KakaoTalk's
+    // in-app WebView can defer requestAnimationFrame until scrolling or other
+    // visual activity, which previously stalled source boundaries, AUTO GRID
+    // replay and five-cut postprocess yields. MessageChannel yields to the
+    // browser task queue without changing detector inputs, call sites, output
+    // order, encoding concurrency or PNG pixels.
+    if(typeof MessageChannel==='function'){
+      channel=new MessageChannel();
+      channel.port1.onmessage=finish;
+      channel.port2.postMessage(0);
+      timer=setTimeout(finish,80);
+    }else{
+      timer=setTimeout(finish,0);
+    }
   });
 }
 function __copyTextWithFallbackV325(text, statusEl){}
