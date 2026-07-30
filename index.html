@@ -1551,32 +1551,16 @@ function __safeDiagCloneV964(value){ return value; }
 function __stageLogV236(){}
 function __diagRafYieldV964(){
   return new Promise(resolve=>{
-    let done=false,timer=null,channel=null;
+    let done=false,timer=null;
     const finish=()=>{
       if(done)return;
       done=true;
       if(timer!==null)clearTimeout(timer);
-      if(channel){
-        channel.port1.onmessage=null;
-        try{channel.port1.close();channel.port2.close();}catch(_e){}
-        channel=null;
-      }
       resolve();
     };
-    // V1047: CUT progress must not depend on a render frame. KakaoTalk's
-    // in-app WebView can defer requestAnimationFrame until scrolling or other
-    // visual activity, which previously stalled source boundaries, AUTO GRID
-    // replay and five-cut postprocess yields. MessageChannel yields to the
-    // browser task queue without changing detector inputs, call sites, output
-    // order, encoding concurrency or PNG pixels.
-    if(typeof MessageChannel==='function'){
-      channel=new MessageChannel();
-      channel.port1.onmessage=finish;
-      channel.port2.postMessage(0);
-      timer=setTimeout(finish,80);
-    }else{
-      timer=setTimeout(finish,0);
-    }
+    timer=setTimeout(finish,80);
+    if(typeof requestAnimationFrame==='function')requestAnimationFrame(finish);
+    else finish();
   });
 }
 function __copyTextWithFallbackV325(text, statusEl){}
@@ -5362,7 +5346,13 @@ if(!orderedSources.length){
 }
 
 results.innerHTML = '';
-try{ results.style.visibility='hidden'; }catch(_visibilityErr){}
+// V1048: Keep the result container renderable while output images load.
+// KakaoTalk WebView can postpone load/decode work for visibility:hidden
+// descendants. The frame-restore path waits for those load contracts source by
+// source, so hiding the whole container formed an 8-second-per-source circular
+// wait. Cards retain their existing publication state; detector, coordinates,
+// encoder concurrency and PNG pixels are unchanged.
+try{ results.style.visibility=''; }catch(_visibilityErr){}
 extracted = [];
 try{
   window.__CUT_OUTPUT_REVEAL_GENERATION_V1043__=(window.__CUT_OUTPUT_REVEAL_GENERATION_V1043__||0)+1;
