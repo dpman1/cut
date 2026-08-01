@@ -21,9 +21,9 @@
 <meta name="twitter:title" content="Frame CUT">
 <meta name="twitter:description" content="콘티, 스토리보드 자동 분할 도구">
 <meta name="twitter:image" content="https://cut.entercredit.kr/ecut-banner-v2.jpg">
-<!-- V1051-R1: restore the V1012 engine/coordinate ownership contract, keep
-     V1040's source-pixel AA proof on canonical axes, and restore synchronous
-     PNG publication so WebView encoder callbacks cannot gate CUT completion. -->
+<!-- V1049: restore the pre-V1042 immediate output contract proven by V1012.
+     Keep V1040's two-encoder speed path, but do not gate CUT completion or
+     card publication on image load, decode, visibility, paint, or polling. -->
 <!-- V1041: OpenCV coordinate ownership follow-up.
      A complete, directly observed V549 matrix may recover a residual 1px
      antialias shoulder only from existing V491/V554 evidence and cached source
@@ -1569,7 +1569,7 @@ function __setAutoDecisionMobileCopyLogV272(title, payload){}
 // the V1041 Lineage crop decision. This block records existing state only; it
 // does not schedule work, yield the event loop, or change any detector value.
 (function __installKakaoLineageDiagD1(){
-  const VERSION='V1051-R1-KAKAO-LINEAGE-FIX-D1';
+  const VERSION='V1051-KAKAO-LINEAGE-DIAG-D1';
   const clock=()=>{
     try{return performance.now();}catch(_e){return Date.now();}
   };
@@ -9809,7 +9809,20 @@ if (engineMode === 'rfee' && __borderlessRuledSheetV972.applied) {
   window.__GRID_LOCAL_CLOSED_PREFLIGHT_V501__=__gridLocalClosedPreflightV501;
   const __lcSpreadV501=__gridLocalClosedPreflightV501.sizeSpread||{w:9,h:9};
   const __lcDominantRatioV501=(__gridLocalClosedPreflightV501.dominantCount||0)/Math.max(1,__gridLocalClosedPreflightV501.accepted||0);
+  // V1051-R2: V491 may preempt ordinary RFEE only when the current route was
+  // explicitly GRID-owned or V491 itself was the positive AUTO route proof.
+  // A graph computed later for dependency planning remains fallback evidence;
+  // it cannot take coordinate ownership from a projection-selected RFEE route.
+  const __activeRfeeRouteFactV1051R2=__autoRouterRfeeOwnershipV1017
+    ?__routerFactV1017
+    :(__autoReplayRfeeOwnershipV1017?__replayAuditFactV1017:null);
+  const __v491MayPreemptOrdinaryRfeeV1051R2=!!(
+    __explicitRfeeOwnershipV1017||
+    (__activeRfeeRouteFactV1051R2&&
+     __activeRfeeRouteFactV1051R2.framedLatticeApplied===true)
+  );
   const __gridLocalClosedFastV501=!!(
+    __v491MayPreemptOrdinaryRfeeV1051R2&&
     __gridLocalClosedPreflightV501.applied&&
     (__gridLocalClosedPreflightV501.count||0)>=6&&
     (__gridLocalClosedPreflightV501.rows||0)>=2&&
@@ -18047,8 +18060,8 @@ function createSourceOutputRenderPlan({writeOutput,bindDownload}){
         }
         metrics.materialized++;
       };
-      // V1051-R1: final canvases are encoded in index order with the proven
-      // synchronous PNG contract. Native toBlob callbacks may not gate CUT
+      // V1051-R2: publish the same final canvases in index order with the
+      // synchronous PNG contract. Native encoder callbacks cannot gate CUT
       // completion or card publication in WebView environments.
       for(const entry of orderedEntries){
         const canvas=prepareCanvas(entry);
@@ -20052,53 +20065,21 @@ const __completeMatrixMeasuredAxesV1012=(()=>{
         ?Math.round(med(values)):NaN;
     }
     z.representativeInsetsV1040=representativeInsetsV1040;
-    const __legacyVerticalInsetPriorV1040=
+    const verticalInsetPriorV1040=
       Math.min(representativeInsetsV1040.L,
         representativeInsetsV1040.R)===commonThickness+1&&
       Math.abs(representativeInsetsV1040.L-
         representativeInsetsV1040.R)<=1;
-    const __legacyHorizontalInsetPriorV1040=
+    const horizontalInsetPriorV1040=
       Math.min(representativeInsetsV1040.T,
         representativeInsetsV1040.B)===commonThickness+1&&
       Math.abs(representativeInsetsV1040.T-
         representativeInsetsV1040.B)<=1;
-    const __legacyInsetPriorV1040=
-      __legacyVerticalInsetPriorV1040&&__legacyHorizontalInsetPriorV1040;
-    // V1051-R1: V775 maps rounded working-raster endpoints back to the source.
-    // Accept the one-endpoint quantisation case only as a narrow extension of
-    // the unchanged V1040 prior, then require the same two-axis source proof.
-    const __insetValuesV1051R1=['L','R','T','B']
-      .map(side=>representativeInsetsV1040[side]);
-    const __plusOneInsetCountV1051R1=__insetValuesV1051R1
-      .filter(value=>value===commonThickness+1).length;
-    const __baseInsetCountV1051R1=__insetValuesV1051R1
-      .filter(value=>value===commonThickness).length;
-    const __pairedQuantizedInsetV1051R1=(a,b)=>{
-      return Number.isFinite(a)&&Number.isFinite(b)&&
-        Math.max(a,b)===commonThickness+1&&Math.abs(a-b)<=1;
-    };
-    const __quantizedEndpointPriorV1051R1=
-      __insetValuesV1051R1.every(value=>Number.isFinite(value)&&
-        (value===commonThickness||value===commonThickness+1))&&
-      __plusOneInsetCountV1051R1>=3&&__baseInsetCountV1051R1<=1&&
-      __pairedQuantizedInsetV1051R1(
-        representativeInsetsV1040.L,representativeInsetsV1040.R)&&
-      __pairedQuantizedInsetV1051R1(
-        representativeInsetsV1040.T,representativeInsetsV1040.B);
-    const __quantizedEndpointExtensionV1051R1=
-      !__legacyInsetPriorV1040&&__quantizedEndpointPriorV1051R1;
-    z.quantizedEndpointExtensionV1051R1=
-      __quantizedEndpointExtensionV1051R1;
     z.insetPriorV1040={
-      vertical:__legacyVerticalInsetPriorV1040,
-      horizontal:__legacyHorizontalInsetPriorV1040,
-      legacy:__legacyInsetPriorV1040,
-      quantizedEndpointExtensionV1051R1:
-        __quantizedEndpointExtensionV1051R1,
-      plusOneCount:__plusOneInsetCountV1051R1,
-      baseCount:__baseInsetCountV1051R1
+      vertical:verticalInsetPriorV1040,
+      horizontal:horizontalInsetPriorV1040
     };
-    if(!__legacyInsetPriorV1040&&!__quantizedEndpointExtensionV1051R1){
+    if(!verticalInsetPriorV1040||!horizontalInsetPriorV1040){
       z.reason='v491-one-raster-aa-inset-prior-not-proven';return z;
     }
     const profile=(horizontal,pos,segments)=>{
@@ -20161,43 +20142,20 @@ const __completeMatrixMeasuredAxesV1012=(()=>{
     });
     const vAll=z.vertical.flatMap(v=>[v.leading,v.trailing]);
     const hAll=z.horizontal.flatMap(v=>[v.leading,v.trailing]);
-    const __vLeadingSupportV1051R1=z.vertical
-      .filter(v=>v.leading.applied).length;
-    const __vTrailingSupportV1051R1=z.vertical
-      .filter(v=>v.trailing.applied).length;
-    const __hLeadingSupportV1051R1=z.horizontal
-      .filter(v=>v.leading.applied).length;
-    const __hTrailingSupportV1051R1=z.horizontal
-      .filter(v=>v.trailing.applied).length;
-    z.directionalSupportV1051R1={
-      verticalLeading:__vLeadingSupportV1051R1,
-      verticalTrailing:__vTrailingSupportV1051R1,
-      horizontalLeading:__hLeadingSupportV1051R1,
-      horizontalTrailing:__hTrailingSupportV1051R1
-    };
-    const __directionalEvidenceV1051R1=
-      !__quantizedEndpointExtensionV1051R1||
-      (__vLeadingSupportV1051R1>0&&__vTrailingSupportV1051R1>0&&
-       __hLeadingSupportV1051R1>0&&__hTrailingSupportV1051R1>0);
     z.verticalRatio=vAll.filter(v=>v.applied).length/Math.max(1,vAll.length);
     z.horizontalRatio=hAll.filter(v=>v.applied).length/Math.max(1,hAll.length);
-    z.rawTarget=__quantizedEndpointExtensionV1051R1
-      ?{w:targetW,h:targetH}
-      :{w:Math.min(...widths),h:Math.min(...heights)};
+    z.rawTarget={w:Math.min(...widths),h:Math.min(...heights)};
     z.verticalBoost=commonThickness<=8&&z.verticalRatio>=.30;
     z.horizontalBoost=commonThickness<=8&&z.horizontalRatio>=.30;
     // Atomic two-axis publication prevents a one-axis cleanup from turning a
     // variable frame family into an apparently uniform matrix.
-    z.applied=!!(__directionalEvidenceV1051R1&&
-      z.verticalBoost&&z.horizontalBoost&&
+    z.applied=!!(z.verticalBoost&&z.horizontalBoost&&
       z.rawTarget.w-2>=20&&z.rawTarget.h-2>=20);
     z.reason=z.applied?'two-axis-v148-aa-shoulder-population-proven':
       'two-axis-aa-shoulder-support-incomplete';
     z.target=z.applied?{w:z.rawTarget.w-2,h:z.rawTarget.h-2}:null;
     return z;
   })();
-  const __quantizedEndpointExtensionV1051R1=
-    !!__completeMatrixAAShoulderV1040.quantizedEndpointExtensionV1051R1;
   // A one-raster deficit can be caused by the source line detector assigning
   // an antialiased shoulder to the frame on one axis.  Test only that single
   // adjacent source line.  A nearly pure frame body may never be restored.
@@ -20239,46 +20197,29 @@ const __completeMatrixMeasuredAxesV1012=(()=>{
     }
     return {...a,T,B,restored};
   });
-  const __resolvedCanonicalV1051R1=
-    resolvedCols.every(a=>a.R-a.L+1===targetW)&&
-    resolvedRows.every(a=>a.B-a.T+1===targetH);
-  if((__quantizedEndpointExtensionV1051R1||
-      !__completeMatrixAAShoulderV1040.applied)&&
-     !__resolvedCanonicalV1051R1)
+  if(!__completeMatrixAAShoulderV1040.applied&&(
+     resolvedCols.some(a=>a.R-a.L+1!==targetW)||
+     resolvedRows.some(a=>a.B-a.T+1!==targetH)))
     return {...out,reason:'one-raster-deficit-not-restorable-from-source-transition',
       widths,heights,target:{w:targetW,h:targetH},resolvedCols,resolvedRows};
   const finalColsV1040=__completeMatrixAAShoulderV1040.applied
-    ?(__quantizedEndpointExtensionV1051R1
-      ?resolvedCols.map(a=>({
-        ...a,L:a.L+1,R:a.R-1,
-        aaShoulderV1040:true
-      }))
-      :colAxes.map(a=>({
-        ...a,L:a.L+1,
-        R:a.L+Math.min(...widths)-2,
-        aaShoulderV1040:true
-      })))
+    ?colAxes.map(a=>({
+      ...a,L:a.L+1,
+      R:a.L+Math.min(...widths)-2,
+      aaShoulderV1040:true
+    }))
     :resolvedCols;
   const finalRowsV1040=__completeMatrixAAShoulderV1040.applied
-    ?(__quantizedEndpointExtensionV1051R1
-      ?resolvedRows.map(a=>({
-        ...a,T:a.T+1,B:a.B-1,
-        aaShoulderV1040:true
-      }))
-      :rowAxes.map(a=>({
-        ...a,T:a.T+1,
-        B:a.T+Math.min(...heights)-2,
-        aaShoulderV1040:true
-      })))
+    ?rowAxes.map(a=>({
+      ...a,T:a.T+1,
+      B:a.T+Math.min(...heights)-2,
+      aaShoulderV1040:true
+    }))
     :resolvedRows;
   const finalTargetWV1040=__completeMatrixAAShoulderV1040.applied
-    ?(__quantizedEndpointExtensionV1051R1
-      ?targetW-2:Math.min(...widths)-2)
-    :targetW;
+    ?Math.min(...widths)-2:targetW;
   const finalTargetHV1040=__completeMatrixAAShoulderV1040.applied
-    ?(__quantizedEndpointExtensionV1051R1
-      ?targetH-2:Math.min(...heights)-2)
-    :targetH;
+    ?Math.min(...heights)-2:targetH;
   const candidates=measured.map(v=>{
     const a=finalRowsV1040[rowOf.get(v.i)],b=finalColsV1040[colOf.get(v.i)];
     const inner={x:b.L,y:a.T,w:finalTargetWV1040,h:finalTargetHV1040};
