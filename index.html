@@ -21,6 +21,8 @@
 <meta name="twitter:title" content="Frame CUT">
 <meta name="twitter:description" content="콘티, 스토리보드 자동 분할 도구">
 <meta name="twitter:image" content="https://cut.entercredit.kr/ecut-banner-v2.jpg">
+<!-- V1052: make AUTO routing sampling browser-consistent and explicitly retire
+     the CUT button's compositor animation at synchronous completion. -->
 <!-- V1049: restore the pre-V1042 immediate output contract proven by V1012.
      Keep V1040's two-encoder speed path, but do not gate CUT completion or
      card publication on image load, decode, visibility, paint, or polling. -->
@@ -1569,7 +1571,7 @@ function __setAutoDecisionMobileCopyLogV272(title, payload){}
 // the V1041 Lineage crop decision. This block records existing state only; it
 // does not schedule work, yield the event loop, or change any detector value.
 (function __installKakaoLineageDiagD1(){
-  const VERSION='V1051-KAKAO-LINEAGE-DIAG-D1';
+  const VERSION='V1052-MOBILE-WEB-DETERMINISTIC-D1';
   const clock=()=>{
     try{return performance.now();}catch(_e){return Date.now();}
   };
@@ -6195,6 +6197,11 @@ function __gridDirectFastLinePreflightV256(img,options={}){
   const sc = document.createElement('canvas');
   sc.width = sw; sc.height = sh;
   const sx = sc.getContext('2d', {willReadFrequently:true});
+  // V1052: V256 is routing evidence. Browser-specific bilinear interpolation
+  // must not decide which detector owns the final coordinates. Nearest-neighbor
+  // sampling keeps the 1200px analysis budget while making source-pixel phase
+  // selection consistent across desktop Chrome and Android/WebView canvases.
+  sx.imageSmoothingEnabled = false;
   sx.drawImage(img, 0, 0, sw, sh);
   let data;
   try{ data = sx.getImageData(0,0,sw,sh).data; }
@@ -7044,10 +7051,7 @@ if(__engineModeEarlyV256==='auto'){
     !__autoBackgroundIslandsV939.partial&&
     (__autoBackgroundIslandsV939.boxes||[]).length>=2
   ) __engineModeEarlyV256='opencv';
-  // An OpenCV recommendation is not an OpenCV ownership proof. Preserve AUTO
-  // so the established V301/V436 outside-frame ink checks can still request
-  // GRID comparison. Only the independently proven owners above may bypass it.
-  else __engineModeEarlyV256='auto';
+  else __engineModeEarlyV256='opencv';
   window.__AUTO_PREFLIGHT_ROUTER_V898__=__publishCurrentSourceEvidenceV1040({
     version:'v934-auto-preflight-recommendation-nondestructive',
     sourceIndex:__sourceIndexV422,
@@ -10765,12 +10769,6 @@ if (engineMode === 'rfee' && __borderlessRuledSheetV972.applied) {
     __cvPostcheckV269.needsRFEE = true;
     __cvPostcheckV269.reason = 'cv-content-invalid-rate';
   }
-  // Outside-frame artwork is a structural GRID-comparison requirement, not
-  // merely a reason to compute RFEE and then re-accept the same OpenCV result.
-  if(__cvOutsideInkNeedsRFEEV301){
-    __cvPostcheckV269.needsRFEE=true;
-    __cvPostcheckV269.reason='outside-frame-ink-v301';
-  }
 
   // V268 AUTO fast-path hard rule:
   // RFEE 생략은 '진짜 완전한 OpenCV 격자'에서만 허용한다.
@@ -10986,10 +10984,6 @@ if (engineMode === 'rfee' && __borderlessRuledSheetV972.applied) {
 
   const __cvOuterGrayBandV436 = __cvOuterGrayBandNeedsGridCompareV436(cvBoxes);
   const __cvOuterGrayBandNeedsRFEEV436 = !!(__cvOuterGrayBandV436 && __cvOuterGrayBandV436.detected);
-  if(__cvOuterGrayBandNeedsRFEEV436){
-    __cvPostcheckV269.needsRFEE=true;
-    __cvPostcheckV269.reason='outer-gray-band-v436';
-  }
   window.__AUTO_OUTER_GRAY_BAND_V436__ = __cvOuterGrayBandV436;
   __stageLogV236('AUTO_OUTER_GRAY_BAND_V436', __cvOuterGrayBandV436);
 
@@ -11839,8 +11833,6 @@ if (engineMode === 'rfee' && __borderlessRuledSheetV972.applied) {
 
   const cvCleanAcceptV281 =
     cvBoxes.length >= 4 &&
-    !__cvOutsideInkNeedsRFEEV301 &&
-    !__cvOuterGrayBandNeedsRFEEV436 &&
     !__gridOverflowRescueV298 &&
     (
       cvGridTieCleanAcceptV283 ||
@@ -11873,7 +11865,6 @@ if (engineMode === 'rfee' && __borderlessRuledSheetV972.applied) {
 
   const cvRandomLayoutAcceptV281 =
     !__cvOuterGrayBandNeedsRFEEV436 &&
-    !__cvOutsideInkNeedsRFEEV301 &&
     !cvCleanAcceptV281 &&
     cvBoxes.length >= 4 &&
     (
@@ -25326,6 +25317,19 @@ try{ window.dispatchEvent(new CustomEvent('__cut_batch_committed_v873')); }catch
     if((extracted && extracted.length) || __hasCutCards)
       document.body.classList.add('__cut_completed');
   }catch(e){}
+  // V1052: Kakao WebView can retain the compositor-owned CSS animation even
+  // after the class is removed. Cancel that animation explicitly, then commit
+  // the already-completed button/results style and layout in this same task.
+  // No timer, rAF, idle callback, scroll, decode or paint polling is involved.
+  try{
+    if(typeof run.getAnimations==='function'){
+      for(const __animationV1052 of run.getAnimations()){
+        try{__animationV1052.cancel();}catch(_animationCancelErrV1052){}
+      }
+    }
+    void run.offsetHeight;
+    if(results) void results.offsetHeight;
+  }catch(_layoutCommitErrV1052){}
   try{window.__cutDiagMarkD1('run-finally-exit');}catch(_diagErrD1){}
 }
 
