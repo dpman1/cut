@@ -6185,10 +6185,10 @@ function __gridDirectFastLinePreflightV256(img,options={}){
   const mp = +(W * H / 1000000).toFixed(2);
   if(!W || !H) return {abort:false, reason:'no-image-size', megapixels:mp};
 
-  // V1046: this plane selects an engine only; final crop coordinates are
-  // always re-measured by the selected engine.  A smaller routing proxy keeps
-  // the same thresholds while avoiding a 1.44 MP synchronous scan on mobile.
-  const maxDim = 800;
+  // Routing evidence must use the pre-optimization analysis scale.  The 800px
+  // mobile shortcut made borderline line phases select different coordinate
+  // owners across browser decoders.
+  const maxDim = 1200;
   const scale = Math.min(1, maxDim / Math.max(W,H));
   const sw = Math.max(1, Math.round(W * scale));
   const sh = Math.max(1, Math.round(H * scale));
@@ -7044,7 +7044,10 @@ if(__engineModeEarlyV256==='auto'){
     !__autoBackgroundIslandsV939.partial&&
     (__autoBackgroundIslandsV939.boxes||[]).length>=2
   ) __engineModeEarlyV256='opencv';
-  else __engineModeEarlyV256='opencv';
+  // An OpenCV recommendation is not an OpenCV ownership proof. Preserve AUTO
+  // so the established V301/V436 outside-frame ink checks can still request
+  // GRID comparison. Only the independently proven owners above may bypass it.
+  else __engineModeEarlyV256='auto';
   window.__AUTO_PREFLIGHT_ROUTER_V898__=__publishCurrentSourceEvidenceV1040({
     version:'v934-auto-preflight-recommendation-nondestructive',
     sourceIndex:__sourceIndexV422,
@@ -8118,20 +8121,6 @@ __stageLogV236('ENGINE_SELECT_START');
 let engineMode = __engineModeEarlyV256;
 __stageLogV236('ENGINE_MODE',{engineMode});
 let cvBoxes = filtered.map(r => ({...r, __engine:'opencv'}));
-// V1046: AUTO already owns this structural class with a current-source
-// periodic/outside-frame certificate. Reuse that negative preflight evidence
-// and enter the unchanged ordinary RFEE path without rescanning fallback-only
-// frame, block-grid, or pencil-grid candidates.
-const __periodicOutsideAutoGridFastV1046=!!(
-  __autoRouterRfeeOwnershipV1017&&
-  __routerFactV1017&&
-  __routerFactV1017.periodicOutsideFrameGrid===true&&
-  __routerFactV1017.completeBackgroundIslandsVeto===false&&
-  __routerFactV1017.projection&&
-  __routerFactV1017.projection.periodicLattice===true&&
-  __routerFactV1017.projection.frameOutsideInk===true
-);
-
 // One source-frame proof is shared by every engine.  It may refine geometry,
 // but it never selects an engine.  A strict repeated local-frame set replaces
 // the corresponding ordinary candidates; genuinely larger independent
@@ -8142,8 +8131,7 @@ const __currentAutoV491RecommendationV1040=
     ?window.__AUTO_V491_FRAME_RECOMMENDATION_V935__:null;
 const __sharedLocalClosedV854=
   (__currentAutoV491RecommendationV1040&&
-   (__currentAutoV491RecommendationV1040.applied||
-    __periodicOutsideAutoGridFastV1046))
+   __currentAutoV491RecommendationV1040.applied)
     ?__currentAutoV491RecommendationV1040
     :(__cachedSourceGraphV951&&
       __cachedSourceGraphV951.image&&
@@ -8633,10 +8621,7 @@ function __shouldUseBlockGridFallbackV358(normalBoxes, blockInfo, mode){
 //
 const __blockGridInfoV358 = __opencvFastStableV603
   ? {version:'v604-skip',applied:false,reason:'legacy-fastpath-accepted',count:0,boxes:[]}
-  : (__periodicOutsideAutoGridFastV1046
-      ? {version:'v1046-periodic-outside-router-skip',applied:false,
-          reason:'periodic-outside-auto-grid-ordinary-rfee-owner',count:0,boxes:[]}
-      : engineMode==='opencv'
+  : (engineMode==='opencv'
       ? {version:'v966-direct-opencv-skip',applied:false,reason:'direct-opencv-contract-never-consumes-blockgrid',count:0,boxes:[]}
       : __detectBlockGridFallbackV358(sourceImage));
 window.__BLOCKGRID_FALLBACK_V358__ = __blockGridInfoV358;
@@ -9819,10 +9804,7 @@ if (engineMode === 'rfee' && __borderlessRuledSheetV972.applied) {
   // V473: GRID 직접 선택에서 일반 RFEE가 노이즈로 실패하기 전에,
   // 매우 제한적인 V472 옅은 희소 격자만 독립 preflight로 먼저 확인한다.
   // OpenCV 직접 선택에는 이 경로가 절대 실행되지 않는다.
-  window.__EXPLICIT_PENCIL_FRAME_GRID_V480__=__periodicOutsideAutoGridFastV1046
-    ?{applied:false,reason:'periodic-outside-auto-grid-ordinary-rfee-owner',
-      rects:[],padding:false,resize:false}
-    :__detectExplicitPencilFrameGridV480();
+  window.__EXPLICIT_PENCIL_FRAME_GRID_V480__=__detectExplicitPencilFrameGridV480();
   // V501: evaluate the same source-confirmed local closed-frame graph before
   // global RFEE.  Selection reuses V492's strict credibility contract; merely
   // finding several rectangles is not enough to bypass RFEE.
@@ -9852,10 +9834,7 @@ if (engineMode === 'rfee' && __borderlessRuledSheetV972.applied) {
       __publishCurrentPassEvidenceV1040({applied:true,reason:'v492-strict-credible-local-closed-preflight',count:filtered.length,dominantRatio:+__lcDominantRatioV501.toFixed(3),sizeSpread:__lcSpreadV501,verticalKernelV501:__gridLocalClosedPreflightV501.verticalKernelV501||null});
     window.__GRID_LOCAL_CLOSED_FRAME_V491__=__gridLocalClosedPreflightV501;
   } else {
-  window.__PALE_PENCIL_LATTICE_V472__=__periodicOutsideAutoGridFastV1046
-    ?{applied:false,reason:'periodic-outside-auto-grid-ordinary-rfee-owner',
-      rects:[],padding:false,resize:false}
-    :__detectPalePencilLatticeV472();
+  window.__PALE_PENCIL_LATTICE_V472__=__detectPalePencilLatticeV472();
   if(window.__PALE_PENCIL_LATTICE_V472__.applied){
     const resolvedV734=await __resolvePaleGridCanonicalV734(window.__PALE_PENCIL_LATTICE_V472__,null);
     rfeeBoxes=resolvedV734.boxes;
@@ -10786,6 +10765,12 @@ if (engineMode === 'rfee' && __borderlessRuledSheetV972.applied) {
     __cvPostcheckV269.needsRFEE = true;
     __cvPostcheckV269.reason = 'cv-content-invalid-rate';
   }
+  // Outside-frame artwork is a structural GRID-comparison requirement, not
+  // merely a reason to compute RFEE and then re-accept the same OpenCV result.
+  if(__cvOutsideInkNeedsRFEEV301){
+    __cvPostcheckV269.needsRFEE=true;
+    __cvPostcheckV269.reason='outside-frame-ink-v301';
+  }
 
   // V268 AUTO fast-path hard rule:
   // RFEE 생략은 '진짜 완전한 OpenCV 격자'에서만 허용한다.
@@ -11001,6 +10986,10 @@ if (engineMode === 'rfee' && __borderlessRuledSheetV972.applied) {
 
   const __cvOuterGrayBandV436 = __cvOuterGrayBandNeedsGridCompareV436(cvBoxes);
   const __cvOuterGrayBandNeedsRFEEV436 = !!(__cvOuterGrayBandV436 && __cvOuterGrayBandV436.detected);
+  if(__cvOuterGrayBandNeedsRFEEV436){
+    __cvPostcheckV269.needsRFEE=true;
+    __cvPostcheckV269.reason='outer-gray-band-v436';
+  }
   window.__AUTO_OUTER_GRAY_BAND_V436__ = __cvOuterGrayBandV436;
   __stageLogV236('AUTO_OUTER_GRAY_BAND_V436', __cvOuterGrayBandV436);
 
@@ -11850,6 +11839,8 @@ if (engineMode === 'rfee' && __borderlessRuledSheetV972.applied) {
 
   const cvCleanAcceptV281 =
     cvBoxes.length >= 4 &&
+    !__cvOutsideInkNeedsRFEEV301 &&
+    !__cvOuterGrayBandNeedsRFEEV436 &&
     !__gridOverflowRescueV298 &&
     (
       cvGridTieCleanAcceptV283 ||
@@ -11882,6 +11873,7 @@ if (engineMode === 'rfee' && __borderlessRuledSheetV972.applied) {
 
   const cvRandomLayoutAcceptV281 =
     !__cvOuterGrayBandNeedsRFEEV436 &&
+    !__cvOutsideInkNeedsRFEEV301 &&
     !cvCleanAcceptV281 &&
     cvBoxes.length >= 4 &&
     (
@@ -20156,14 +20148,29 @@ const __completeMatrixMeasuredAxesV1012=(()=>{
         ?Math.round(med(values)):NaN;
     }
     z.representativeInsetsV1040=representativeInsetsV1040;
+    // Physical frame thickness is axis-owned. A single four-side mode can
+    // collapse a 1px vertical stroke and a 2px horizontal stroke into one
+    // value, making identical matrices keep different AA shoulders.
+    const verticalThicknessVoteV1052=mode(measured.flatMap(v=>v.valid
+      ?['L','R'].map(k=>+v.s[k].thickness):[]));
+    const horizontalThicknessVoteV1052=mode(measured.flatMap(v=>v.valid
+      ?['T','B'].map(k=>+v.s[k].thickness):[]));
+    const verticalThicknessV1052=verticalThicknessVoteV1052
+      ?verticalThicknessVoteV1052[0]:commonThickness;
+    const horizontalThicknessV1052=horizontalThicknessVoteV1052
+      ?horizontalThicknessVoteV1052[0]:commonThickness;
+    z.axisThicknessV1052={vertical:verticalThicknessV1052,
+      horizontal:horizontalThicknessV1052,
+      verticalVote:verticalThicknessVoteV1052,
+      horizontalVote:horizontalThicknessVoteV1052};
     const verticalInsetPriorV1040=
       Math.min(representativeInsetsV1040.L,
-        representativeInsetsV1040.R)===commonThickness+1&&
+        representativeInsetsV1040.R)===verticalThicknessV1052+1&&
       Math.abs(representativeInsetsV1040.L-
         representativeInsetsV1040.R)<=1;
     const horizontalInsetPriorV1040=
       Math.min(representativeInsetsV1040.T,
-        representativeInsetsV1040.B)===commonThickness+1&&
+        representativeInsetsV1040.B)===horizontalThicknessV1052+1&&
       Math.abs(representativeInsetsV1040.T-
         representativeInsetsV1040.B)<=1;
     z.insetPriorV1040={
@@ -25316,9 +25323,8 @@ try{ window.dispatchEvent(new CustomEvent('__cut_batch_committed_v873')); }catch
   document.body.classList.remove('__cut_processing');
   try{
     const __hasCutCards = !!(results && results.querySelector && results.querySelector('.card'));
-    if((extracted && extracted.length) || __hasCutCards){
-      requestAnimationFrame(()=>document.body.classList.add('__cut_completed'));
-    }
+    if((extracted && extracted.length) || __hasCutCards)
+      document.body.classList.add('__cut_completed');
   }catch(e){}
   try{window.__cutDiagMarkD1('run-finally-exit');}catch(_diagErrD1){}
 }
