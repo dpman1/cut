@@ -1540,8 +1540,6 @@ const __BUILTIN_SAMPLES__ = [{"name":"액션.jpg","data":"data:image/jpeg;base64
 // Stable release: diagnostic UI and trace accumulation removed.
 window.__CUT_DEBUG__ = false;
 window.__CUT_STAGE_TRACE_V236__ = [];
-window.__CUT_DIAG_V964__ = null;
-function __safeDiagCloneV964(value){ return value; }
 function __stageLogV236(){}
 function __diagRafYieldV964(){
   return new Promise(resolve=>{
@@ -1564,186 +1562,6 @@ function __getOpenCvDebugTextV291(){ return ''; }
 function __copyOpenCvDebugV291(){}
 function __renderOpenCvDebugV291(payload){}
 function __setAutoDecisionMobileCopyLogV272(title, payload){}
-
-// DIAG D1: read-only instrumentation for the Kakao WebView encode stall and
-// the V1041 Lineage crop decision. This block records existing state only; it
-// does not schedule work, yield the event loop, or change any detector value.
-(function __installKakaoLineageDiagD1(){
-  const VERSION='V1051-KAKAO-LINEAGE-DIAG-D1';
-  const clock=()=>{
-    try{return performance.now();}catch(_e){return Date.now();}
-  };
-  const wall=()=>{
-    try{return new Date().toISOString();}catch(_e){return '';}
-  };
-  const fresh=()=>({
-    version:VERSION,
-    startedAtWall:wall(),
-    startedAtClock:clock(),
-    timeline:[],
-    pendingEncodes:{},
-    encodeSequence:0
-  });
-  window.__CUT_KAKAO_LINEAGE_DIAG_D1__=fresh();
-
-  window.__cutDiagResetD1=function(){
-    window.__CUT_KAKAO_LINEAGE_DIAG_D1__=fresh();
-    window.__cutDiagMarkD1('diag-reset');
-  };
-  window.__cutDiagMarkD1=function(stage,data){
-    try{
-      const d=window.__CUT_KAKAO_LINEAGE_DIAG_D1__||fresh();
-      window.__CUT_KAKAO_LINEAGE_DIAG_D1__=d;
-      d.timeline.push({
-        n:d.timeline.length+1,
-        ms:+(clock()-d.startedAtClock).toFixed(1),
-        wall:wall(),
-        stage:String(stage||''),
-        visibility:document.visibilityState,
-        scrollY:Math.round(window.scrollY||0),
-        data:data===undefined?null:data
-      });
-      if(d.timeline.length>1200)d.timeline.splice(0,d.timeline.length-1200);
-    }catch(_e){}
-  };
-  window.__cutDiagEncodeStartD1=function(index,canvas){
-    try{
-      const d=window.__CUT_KAKAO_LINEAGE_DIAG_D1__;
-      const id=++d.encodeSequence;
-      d.pendingEncodes[id]={id,index:index+1,w:canvas.width,h:canvas.height,
-        startMs:+(clock()-d.startedAtClock).toFixed(1),stage:'toBlob-call'};
-      window.__cutDiagMarkD1('encode-toBlob-call',{id,index:index+1,w:canvas.width,h:canvas.height});
-      return id;
-    }catch(_e){return 0;}
-  };
-  window.__cutDiagEncodeStageD1=function(id,stage,data){
-    try{
-      const d=window.__CUT_KAKAO_LINEAGE_DIAG_D1__,q=d&&d.pendingEncodes[id];
-      if(q){q.stage=stage;q.lastMs=+(clock()-d.startedAtClock).toFixed(1);}
-      window.__cutDiagMarkD1(stage,Object.assign({id},data||{}));
-      if(q&&(stage==='encode-resolved'||stage==='encode-fallback-resolved'))delete d.pendingEncodes[id];
-    }catch(_e){}
-  };
-
-  function jsonSafe(value){
-    const seen=new WeakSet();
-    try{
-      return JSON.parse(JSON.stringify(value,function(_k,v){
-        if(v instanceof Map)return {__type:'Map',entries:[...v.entries()]};
-        if(v instanceof Set)return {__type:'Set',values:[...v.values()]};
-        if(v&&typeof v==='object'){
-          if(seen.has(v))return '[Circular]';
-          seen.add(v);
-        }
-        if(typeof v==='number'&&!Number.isFinite(v))return String(v);
-        return v;
-      }));
-    }catch(e){return {serializationError:String(e&&e.message||e)};}
-  }
-  function cardSnapshot(){
-    return [...document.querySelectorAll('#results .card')].map((card,i)=>{
-      const img=card.querySelector('img');
-      return {
-        index:i+1,hidden:!!card.hidden,display:card.style.display||'',
-        naturalSize:img?{w:img.naturalWidth||0,h:img.naturalHeight||0}:null,
-        declaredSize:img?{w:Number(img.dataset.outputWidthV1020)||0,
-          h:Number(img.dataset.outputHeightV1020)||0}:null,
-        complete:img?!!img.complete:false,
-        data:Object.assign({},card.dataset)
-      };
-    });
-  }
-  window.__getKakaoLineageDiagTextD1=function(){
-    const run=document.getElementById('run');
-    const audits=Array.isArray(window.__MULTI_SOURCE_AUTO_AUDIT_V647__)
-      ?window.__MULTI_SOURCE_AUTO_AUDIT_V647__.map(a=>({
-        fileName:a&&a.fileName,imageIndex:a&&a.imageIndex,
-        chosenEngine:a&&a.chosenEngine,resultStart:a&&a.resultStart,
-        resultEnd:a&&a.resultEnd,resultCount:a&&a.resultCount,
-        v549SourceAxesV740:a&&a.v549SourceAxesV740,
-        cutPostTraceV667:a&&a.cutPostTraceV667,
-        executionPlanV1017:a&&a.executionPlanV1017
-      })):[];
-    const payload={
-      version:VERSION,
-      copiedAt:wall(),
-      environment:{
-        userAgent:navigator.userAgent,
-        platform:navigator.platform||'',
-        url:location.href,
-        visibility:document.visibilityState,
-        viewport:{innerWidth:window.innerWidth,innerHeight:window.innerHeight,
-          devicePixelRatio:window.devicePixelRatio||1},
-        capabilities:{requestAnimationFrame:typeof requestAnimationFrame==='function',
-          requestIdleCallback:typeof requestIdleCallback==='function',
-          canvasToBlob:typeof HTMLCanvasElement!=='undefined'&&typeof HTMLCanvasElement.prototype.toBlob==='function',
-          fileReader:typeof FileReader==='function',
-          imageDecode:typeof HTMLImageElement!=='undefined'&&typeof HTMLImageElement.prototype.decode==='function'}
-      },
-      liveState:{
-        elapsedMs:+(clock()-(window.__CUT_KAKAO_LINEAGE_DIAG_D1__||{}).startedAtClock).toFixed(1),
-        runBusy:run&&run.dataset.busy||'0',
-        runWorking:!!(run&&run.classList.contains('working')),
-        bodyProcessing:document.body.classList.contains('__cut_processing'),
-        bodyCompleted:document.body.classList.contains('__cut_completed'),
-        resultCards:document.querySelectorAll('#results .card').length,
-        extractedCount:Array.isArray(window.extracted)?window.extracted.length:null,
-        scrollY:Math.round(window.scrollY||0)
-      },
-      diag:window.__CUT_KAKAO_LINEAGE_DIAG_D1__,
-      v1041SourceAxes:window.__V740_V549_SOURCE_AXES__||null,
-      completeMatrixMeasuredAxes:window.__COMPLETE_MATRIX_MEASURED_AXES_V1012__||null,
-      sourceAudits:audits,
-      cards:cardSnapshot()
-    };
-    return '===== CUT KAKAO + LINEAGE DIAG D1 =====\n'+
-      JSON.stringify(jsonSafe(payload),null,2)+
-      '\n===== END CUT KAKAO + LINEAGE DIAG D1 =====';
-  };
-
-  function showManualCopy(text){
-    let box=document.getElementById('__cutDiagCopyBoxD1');
-    if(!box){
-      box=document.createElement('textarea');
-      box.id='__cutDiagCopyBoxD1';
-      box.setAttribute('readonly','readonly');
-      box.style.cssText='position:fixed;z-index:2147483647;left:8px;right:8px;top:8px;width:calc(100% - 16px);height:65vh;padding:12px;border:2px solid #111;border-radius:8px;background:#fff;color:#111;font:12px/1.45 monospace;';
-      document.body.appendChild(box);
-    }
-    box.value=text;box.style.display='block';box.focus();box.select();
-    box.setSelectionRange(0,box.value.length);
-  }
-  async function copyDiag(){
-    window.__cutDiagMarkD1('copy-button-tap');
-    const text=window.__getKakaoLineageDiagTextD1();
-    const btn=document.getElementById('__cutDiagCopyBtnD1');
-    try{
-      if(!navigator.clipboard||typeof navigator.clipboard.writeText!=='function')throw new Error('clipboard-api-unavailable');
-      await navigator.clipboard.writeText(text);
-      if(btn){btn.textContent='진단 로그 복사됨';setTimeout(()=>btn.textContent='진단 로그 복사',1600);}
-    }catch(_e){
-      showManualCopy(text);
-      let ok=false;
-      try{ok=!!document.execCommand('copy');}catch(_e2){}
-      if(btn)btn.textContent=ok?'진단 로그 복사됨':'로그 전체선택됨';
-    }
-  }
-  function mount(){
-    if(document.getElementById('__cutDiagCopyBtnD1'))return;
-    const wrap=document.createElement('div');
-    wrap.id='__cutDiagPanelD1';
-    wrap.style.cssText='position:fixed;z-index:2147483646;right:10px;bottom:10px;display:flex;gap:6px;align-items:center;padding:6px;border:1px solid #222;border-radius:9px;background:rgba(255,255,255,.96);box-shadow:0 2px 10px rgba(0,0,0,.22);';
-    const btn=document.createElement('button');
-    btn.type='button';btn.id='__cutDiagCopyBtnD1';btn.textContent='진단 로그 복사';
-    btn.style.cssText='min-height:42px;padding:0 13px;border:0;border-radius:7px;background:#111;color:#fff;font:700 13px/1 sans-serif;';
-    btn.addEventListener('click',copyDiag);
-    wrap.appendChild(btn);document.body.appendChild(wrap);
-    window.addEventListener('scroll',()=>window.__cutDiagMarkD1('window-scroll'),{passive:true});
-    document.addEventListener('visibilitychange',()=>window.__cutDiagMarkD1('visibility-change'));
-  }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});
-  else mount();
-})();
 
 // V763: RFEE는 OpenCV 런타임과 무관하게 실행할 수 있다. 로컬 HTML에서
 // OpenCV 초기화 이벤트가 오지 않아 CUT이 영구 비활성처럼 보이지 않도록
@@ -5303,16 +5121,12 @@ if(!sourceFiles.length && !sourceImages.length && multiPreview.children.length==
 }
 
 window.__CUT_STAGE_TRACE_V236__=[];
-window.__CUT_DIAG_V964__=null;
-try{window.__cutDiagResetD1();}catch(_diagErrD1){}
 __stageLogV236('RUN_CLICK');
-try{window.__cutDiagMarkD1('run-click',{cropMode:__runCropModeRequestedV1003});}catch(_diagErrD1){}
 // busy/working were already set at button press so animation is visible during auto-sample loading too.
 
 setTimeout(async ()=>{
 try{
 __stageLogV236('RUN_TIMEOUT_ENTER');
-try{window.__cutDiagMarkD1('run-timeout-enter');}catch(_diagErrD1){}
 
 try{ if(window.__SAMPLE_LOAD_PROMISE__) await window.__SAMPLE_LOAD_PROMISE__; }catch(e){}
 
@@ -17901,9 +17715,6 @@ function createSourceOutputRenderPlan({writeOutput,bindDownload}){
     reusedInitialCanvas:0,
     sourceRedraws:0,
     encodes:0,
-    asyncEncodesV1030:0,
-    syncEncodeFallbacksV1030:0,
-    encodeConcurrencyV1030:1,
     indexMismatches:0,
     earlyReleasedInitialCanvas:0,
     releasedInitialCanvasBackingStores:0,
@@ -18036,21 +17847,10 @@ function createSourceOutputRenderPlan({writeOutput,bindDownload}){
         const ready=(typeof img.decode==='function')
           ?img.decode().catch(()=>loaded)
           :loaded;
-        try{window.__cutDiagMarkD1('card-src-set',{
-          index:entry.index+1,width,height,decodeFunction:typeof img.decode==='function'
-        });}catch(_diagErrD1){}
         ready.then(()=>{
           entry.card.hidden=false;
           entry.card.style.display='';
-          try{window.__cutDiagMarkD1('card-ready-visible',{
-            index:entry.index+1,naturalWidth:img.naturalWidth||0,
-            naturalHeight:img.naturalHeight||0
-          });}catch(_diagErrD1){}
-        }).catch(error=>{
-          try{window.__cutDiagMarkD1('card-ready-error',{
-            index:entry.index+1,error:String(error&&error.message||error||'')
-          });}catch(_diagErrD1){}
-        });
+        }).catch(()=>{});
         img.dataset.outputWidthV1020=String(width);
         img.dataset.outputHeightV1020=String(height);
         writeOutput(entry.index,url);
@@ -18884,11 +18684,6 @@ const __repairSourceAxesV740=(()=>{
   out.target=target;out.rows=[...rowAxes].map(([row,q])=>({row,T:q.T,B:q.B}));out.cols=[...colAxes].map(([col,q])=>({col,L:q.L,R:q.R}));out.count=out.contracts.size;return out;
 })();
 window.__V740_V549_SOURCE_AXES__={...__repairSourceAxesV740,contracts:[...__repairSourceAxesV740.contracts].map(([index,q])=>({index:index+1,...q}))};
-try{window.__cutDiagMarkD1('v1041-source-axes-published',{
-  applied:!!window.__V740_V549_SOURCE_AXES__.applied,
-  reason:window.__V740_V549_SOURCE_AXES__.reason,
-  axisShoulderFallbackV1041:window.__V740_V549_SOURCE_AXES__.axisShoulderFallbackV1041||null
-});}catch(_diagErrD1){}
 const __frameContractsV554=ordered.map((r,i)=>{
   if(r&&r.__opencvFramelessGutterV922){
     const q={x:Math.round(r.x),y:Math.round(r.y),w:Math.round(r.w),h:Math.round(r.h)};
@@ -20260,12 +20055,6 @@ const __completeMatrixMeasuredAxesV1012=(()=>{
     completeMatrixAAShoulderV1040:__completeMatrixAAShoulderV1040};
 })();
 window.__COMPLETE_MATRIX_MEASURED_AXES_V1012__=__completeMatrixMeasuredAxesV1012;
-try{window.__cutDiagMarkD1('complete-matrix-axes-published',{
-  applied:!!__completeMatrixMeasuredAxesV1012.applied,
-  reason:__completeMatrixMeasuredAxesV1012.reason,
-  target:__completeMatrixMeasuredAxesV1012.target||null,
-  completeMatrixAAShoulderV1040:__completeMatrixMeasuredAxesV1012.completeMatrixAAShoulderV1040||null
-});}catch(_diagErrD1){}
 
 // V783: on the already-proven strict OpenCV repeated-grid path, reconstruct
 // the crop from the measured SOURCE frame outer rectangle and the repeated
@@ -25215,10 +25004,6 @@ try{ window.dispatchEvent(new CustomEvent('__cut_batch_committed_v873')); }catch
     __setMobileDebugLog('[CUT_FATAL]', {message:String(__runErr && (__runErr.message||__runErr)), stack:String((__runErr&&__runErr.stack)||'').slice(0,1200), stageTrace:window.__CUT_STAGE_TRACE_V236__||[]});
   }catch(e){}
 }finally{
-  try{window.__cutDiagMarkD1('run-finally-enter',{
-    cuts:Array.isArray(extracted)?extracted.length:null,
-    cards:document.querySelectorAll('#results .card').length
-  });}catch(_diagErrD1){}
   run.dataset.busy='0';
   run.classList.remove('working');
   document.body.classList.remove('__cut_auto_sample_running');
@@ -25229,7 +25014,6 @@ try{ window.dispatchEvent(new CustomEvent('__cut_batch_committed_v873')); }catch
       requestAnimationFrame(()=>document.body.classList.add('__cut_completed'));
     }
   }catch(e){}
-  try{window.__cutDiagMarkD1('run-finally-exit');}catch(_diagErrD1){}
 }
 
 },0);
