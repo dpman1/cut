@@ -1574,6 +1574,29 @@ run.disabled = false;
 run.textContent = "CUT";
 }
 
+// V1072: the button can be pressed before the async OpenCV runtime finishes
+// initializing (notably immediately after opening a Kakao in-app link).
+// GRID remains independent; AUTO/OpenCV wait for the runtime they actually use.
+function __isOpenCvRuntimeReadyV1072(){
+  try{
+    return !!(window.cv && typeof window.cv.Mat==='function' &&
+      typeof window.cv.imread==='function');
+  }catch(e){return false;}
+}
+function __waitForOpenCvRuntimeV1072(timeoutMs){
+  if(__isOpenCvRuntimeReadyV1072()) return Promise.resolve(true);
+  const limit=Math.max(0,Number(timeoutMs)||0);
+  const started=Date.now();
+  return new Promise(resolve=>{
+    const check=()=>{
+      if(__isOpenCvRuntimeReadyV1072()) return resolve(true);
+      if(Date.now()-started>=limit) return resolve(false);
+      setTimeout(check,50);
+    };
+    check();
+  });
+}
+
 // OpenCV 로딩 대기 엔진
 window.addEventListener('load', () => {
 let tries = 0;
@@ -5086,6 +5109,8 @@ const __runCropModeRequestedV1003 =
   ((document.querySelector('input[name="cropMode"]:checked')||{}).value ||
    window.__CUT_LAST_CROP_MODE__ || 'tight');
 window.__RUN_CROP_MODE_REQUESTED_V1003__=__runCropModeRequestedV1003;
+const __runEngineModeRequestedV1072 =
+  ((document.querySelector('input[name="engine"]:checked')||{}).value || 'auto');
 // V24: state ownership is separated.
 // - CUT original working animation stays on #run.
 // - Gap state stays only on body classes.
@@ -5103,6 +5128,20 @@ try{
 try{
   await __diagRafYieldV964('run-start-paint');
 }catch(e){}
+
+// V1072: do not enter the existing AUTO/OpenCV pipeline until its async
+// runtime is usable. This wait uses timers only and does not restore the
+// Kakao-sensitive requestAnimationFrame/requestIdleCallback dependency.
+if(__runEngineModeRequestedV1072!=='rfee'){
+  const __openCvReadyV1072=await __waitForOpenCvRuntimeV1072(24000);
+  if(!__openCvReadyV1072){
+    run.dataset.busy='0';
+    run.classList.remove('working');
+    document.body.classList.remove('__cut_auto_sample_running');
+    document.body.classList.remove('__cut_processing');
+    return;
+  }
+}
 
 // Empty-state UX only: when the initial/cleared state has no files, load the built-in sample
 // through the existing sample button route, then continue into the original CUT flow.
@@ -20081,29 +20120,40 @@ const __completeMatrixMeasuredAxesV1012=(()=>{
   // perimeter-only and reuses the source pixels already owned by V554.
   if(__directLocalMatrixOwnerV1040&&__sourcePixelsV554){
     const W=sourceImage.width,H=sourceImage.height;
-    const sideMean=(r,k,o)=>{
+    const sideStats=(r,k,o)=>{
       const horizontal=k==='T'||k==='B',len=horizontal?r.w:r.h;
       const a=Math.floor(len*.07),b=Math.max(a+1,Math.ceil(len*.93));
-      let sum=0,n=0;
+      let sum=0,n=0,dark=0,run=0,maxRun=0;
       for(let p=a;p<b;p++){
         const x=k==='L'?r.x+o:k==='R'?r.x+r.w-1-o:r.x+p;
         const y=k==='T'?r.y+o:k==='B'?r.y+r.h-1-o:r.y+p;
         if(x<0||x>=W||y<0||y>=H)continue;
         const z=(y*W+x)*4;
-        sum+=(__sourcePixelsV554[z]+__sourcePixelsV554[z+1]+
-          __sourcePixelsV554[z+2])/3;n++;
+        const g=(__sourcePixelsV554[z]+__sourcePixelsV554[z+1]+
+          __sourcePixelsV554[z+2])/3;
+        sum+=g;n++;
+        if(g<150){dark++;run++;if(run>maxRun)maxRun=run;}else run=0;
       }
-      return n?sum/n:NaN;
+      return n?{mean:sum/n,darkRatio:dark/n,lineRatio:maxRun/n}:null;
     };
     const transition=(r,k)=>{
-      const base=sideMean(r,k,0),limit=Math.max(2,Math.min(8,
+      const base=sideStats(r,k,0),limit=Math.max(2,Math.min(8,
         Math.round(Math.min(r.w,r.h)*.012)));
-      if(!Number.isFinite(base)||base>42)return null;
+      if(!base||!Number.isFinite(base.mean)||base.mean>42)return null;
       for(let o=1;o<=limit;o++){
-        const mean=sideMean(r,k,o);
-        if(Number.isFinite(mean)&&mean>=Math.max(30,base+26))
-          return {thickness:o,outerMean:+base.toFixed(2),
-            innerMean:+mean.toFixed(2)};
+        const s=sideStats(r,k,o);
+        // Mean brightness alone is unstable at an antialiased JPEG edge: one
+        // decoder can promote the last physical frame raster by a fraction and
+        // make it look like picture pixels.  The established residual-frame
+        // contract also requires that the candidate is no longer one long
+        // continuous dark line.  Reuse that same evidence on this already-read
+        // perimeter before granting final coordinate ownership.
+        const stillFrame=!!(s&&s.darkRatio>=.65&&s.lineRatio>=.58);
+        if(s&&Number.isFinite(s.mean)&&s.mean>=Math.max(30,base.mean+26)&&
+           !stillFrame)
+          return {thickness:o,outerMean:+base.mean.toFixed(2),
+            innerMean:+s.mean.toFixed(2),darkRatio:+s.darkRatio.toFixed(3),
+            lineRatio:+s.lineRatio.toFixed(3)};
       }
       return null;
     };
@@ -23924,18 +23974,37 @@ const __v831BoundaryAtomicV1056=(()=>{
   const anyInset=perCutInsets.some(v=>v.L||v.R||v.T||v.B);
   out.perCutInsets=perCutInsets.map((v,i)=>({idx:rows[i].idx+1,...v,
     inner:innerSizes[i]}));
-  if(!anyInset||new Set(innerSizes.map(v=>v.w)).size!==1||
-     new Set(innerSizes.map(v=>v.h)).size!==1){
-    out.reason=anyInset?'per-cut-inner-geometry-not-converged':
+  const perCutConverged=anyInset&&
+    new Set(innerSizes.map(v=>v.w)).size===1&&
+    new Set(innerSizes.map(v=>v.h)).size===1;
+  // Preserve V1056's established complete-population fallback.  Per-cell
+  // measurements outrank it only when they prove one exact inner geometry
+  // (for example, the same stroke split differently between T and B).  If a
+  // faint member misses one side and therefore cannot converge, the existing
+  // per-side population vote remains the atomic contract; one missed side may
+  // not cancel three independently proven sides for every cell.
+  const commonEligible=['L','R','T','B'].every(side=>
+    support[side][0].ratio>=.5);
+  if(!perCutConverged&&!commonEligible){
+    out.reason=anyInset?'per-cut-not-converged-and-common-boundary-incomplete':
       'no-measured-residual-boundary';return out;
   }
+  if(commonEligible){
+    for(const side of ['L','R','T','B']){
+      let depth=0;
+      for(let pass=0;pass<2&&support[side][pass].ratio>=.5;pass++)depth++;
+      out.inset[side]=depth;
+    }
+  }
+  const selectedInsets=perCutConverged?perCutInsets:
+    rows.map(()=>({...out.inset}));
   const cards=[...document.querySelectorAll('#results .card')].slice(__sourceResultStartV469);
   let changed=0;
   for(let i=0;i<rows.length;i++){
-    const t=rows[i],inset=perCutInsets[i];
+    const t=rows[i],inset=selectedInsets[i];
     const before={...t.finalRect},q={
       x:before.x+inset.L,y:before.y+inset.T,
-      w:innerSizes[i].w,h:innerSizes[i].h};
+      w:before.w-inset.L-inset.R,h:before.h-inset.T-inset.B};
     const card=cards[t.idx],img=card&&card.querySelector('img');
     if(q.w>20&&q.h>20&&img&&
        __sourceOutputRenderPlan.updateRect(card,t.idx,q,'v317-repeated-boundary-v1056')){
@@ -23943,7 +24012,9 @@ const __v831BoundaryAtomicV1056=(()=>{
     }
   }
   out.applied=changed===rows.length;
-  out.reason=out.applied?'per-cut-measured-boundary-converged-v1074':
+  out.reason=out.applied?(perCutConverged?
+    'per-cut-measured-boundary-converged-v1074':
+    'common-four-side-boundary-fallback-v1056'):
     'atomic-render-incomplete';
   out.changed=changed;
   return out;
