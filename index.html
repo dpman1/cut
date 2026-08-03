@@ -2482,10 +2482,10 @@ function __detectLocalClosedFrameGraphV491(sourceImage){
         }n++;if(found)hit++;
       }return hit/Math.max(1,n);
     };
-    const raw=[];
+    const raw=[],__sparseClosedCandidatesV1072=[];
     for(let i=0;i<contours.size();i++){
       const ct=contours.get(i),r=cv.boundingRect(ct);ct.delete();
-      if(r.width<W*.075||r.height<H*.045||r.width>W*.88||r.height>H*.55)continue;
+      if(r.width<W*.075||r.height<H*.045||r.width>W*.98||r.height>H*.72)continue;
       const ar=r.width/Math.max(1,r.height);if(ar<.35||ar>6.5)continue;
       const cov={T:sideCov(r,'T'),B:sideCov(r,'B'),L:sideCov(r,'L'),R:sideCov(r,'R')},vals=[cov.T,cov.B,cov.L,cov.R],mean=vals.reduce((a,b)=>a+b,0)/4;
       const strong=vals.filter(v=>v>=.60).length,strongMean=[...vals].sort((a,b)=>b-a).slice(0,3).reduce((a,b)=>a+b,0)/3;
@@ -2494,7 +2494,14 @@ function __detectLocalClosedFrameGraphV491(sourceImage){
       const closed4=Math.min(...vals)>=.60&&mean>=.74;
       const open3=strong>=3&&strongMean>=.72;
       if(!closed4&&!open3)continue;
-      raw.push({x:r.x,y:r.y,w:r.width,h:r.height,cx:r.x+r.width/2,cy:r.y+r.height/2,cov,score:strongMean+strong*.12,__threeSideFrameV592:!closed4});
+      const candidate={x:r.x,y:r.y,w:r.width,h:r.height,cx:r.x+r.width/2,cy:r.y+r.height/2,cov,score:strongMean+strong*.12,__threeSideFrameV592:!closed4};
+      // V1072: retain a strictly closed, source-line candidate for the sparse
+      // one-axis proof below even when it occupies more than the historical
+      // 88% page-width budget. Ordinary V491 candidates keep that budget.
+      if(closed4&&Math.min(...vals)>=.78&&mean>=.88&&
+         (r.width>=W*.45||r.height>=H*.45))
+        __sparseClosedCandidatesV1072.push(candidate);
+      if(r.width<=W*.88&&r.height<=H*.55)raw.push(candidate);
     }
     raw.sort((a,b)=>b.score-a.score||b.w*b.h-a.w*a.h);
     const unique=[];
@@ -2502,7 +2509,76 @@ function __detectLocalClosedFrameGraphV491(sourceImage){
       const dup=unique.some(q=>{const ix=Math.max(0,Math.min(r.x+r.w,q.x+q.w)-Math.max(r.x,q.x)),iy=Math.max(0,Math.min(r.y+r.h,q.y+q.h)-Math.max(r.y,q.y));return ix*iy/Math.max(1,Math.min(r.w*r.h,q.w*q.h))>.82;});
       if(!dup)unique.push(r);
     }
-    dbg.accepted=unique.length;if(unique.length<4){dbg.rejectedBoxesV1064=unique.map(r=>({x:r.x,y:r.y,w:r.w,h:r.h,cov:r.cov,threeSide:!!r.__threeSideFrameV592,score:r.score}));dbg.reason='too-few-closed-rectangles';return dbg;}
+    // V1072: a repeated frame population can be one column or one row. Prove
+    // it from the same V491 morphology and four-side coverage already read
+    // above. This is not a count exception: every member must belong to one
+    // repeated size family, share both cross-axis edges, remain non-overlapping,
+    // and cover a meaningful part of the page along the repeating axis.
+    let __sparseSingleAxisFrameV1072=null;
+    if(unique.length<4){
+    const __sparseUniqueV1072=[];
+    __sparseClosedCandidatesV1072
+      .slice().sort((a,b)=>b.score-a.score||b.w*b.h-a.w*a.h)
+      .forEach(r=>{
+        const dup=__sparseUniqueV1072.some(q=>{
+          const ix=Math.max(0,Math.min(r.x+r.w,q.x+q.w)-Math.max(r.x,q.x));
+          const iy=Math.max(0,Math.min(r.y+r.h,q.y+q.h)-Math.max(r.y,q.y));
+          return ix*iy/Math.max(1,Math.min(r.w*r.h,q.w*q.h))>.82;
+        });
+        if(!dup)__sparseUniqueV1072.push(r);
+      });
+    const __medianSparseV1072=a=>{const s=a.slice().sort((x,y)=>x-y);return s.length?s[Math.floor(s.length/2)]:0;};
+    const __sparseFamiliesV1072=[];
+    for(const r of __sparseUniqueV1072){
+      let g=__sparseFamiliesV1072.find(q=>
+        Math.abs(r.w-q.mw)<=Math.max(8,q.mw*.10)&&
+        Math.abs(r.h-q.mh)<=Math.max(7,q.mh*.10));
+      if(!g){g={items:[],mw:r.w,mh:r.h};__sparseFamiliesV1072.push(g);}
+      g.items.push(r);g.mw=__medianSparseV1072(g.items.map(v=>v.w));
+      g.mh=__medianSparseV1072(g.items.map(v=>v.h));
+    }
+    const __proveSparseAxisV1072=(g,axis)=>{
+      const vertical=axis==='y';
+      const items=g.items.slice().sort((a,b)=>vertical?(a.y-b.y||a.x-b.x):(a.x-b.x||a.y-b.y));
+      if(items.length<2||items.length>20)return null;
+      const ws=items.map(v=>v.w),hs=items.map(v=>v.h);
+      const spreadW=(Math.max(...ws)-Math.min(...ws))/Math.max(1,g.mw);
+      const spreadH=(Math.max(...hs)-Math.min(...hs))/Math.max(1,g.mh);
+      if(spreadW>.08||spreadH>.08)return null;
+      const crossSize=vertical?g.mw:g.mh,pageCross=vertical?W:H;
+      if(crossSize<pageCross*.45||crossSize>pageCross*.98)return null;
+      const lead=items.map(v=>vertical?v.x:v.y),trail=items.map(v=>vertical?v.x+v.w:v.y+v.h);
+      const leadMed=__medianSparseV1072(lead),trailMed=__medianSparseV1072(trail);
+      const axisTol=Math.max(4,crossSize*.025);
+      if(!items.every(v=>Math.abs((vertical?v.x:v.y)-leadMed)<=axisTol&&
+        Math.abs((vertical?v.x+v.w:v.y+v.h)-trailMed)<=axisTol))return null;
+      const starts=items.map(v=>vertical?v.y:v.x),sizes=items.map(v=>vertical?v.h:v.w);
+      const gaps=starts.slice(1).map((v,i)=>v-(starts[i]+sizes[i]));
+      if(gaps.some(v=>v<-2||v>(vertical?g.mh:g.mw)*.60))return null;
+      if(gaps.length>1){
+        const gm=__medianSparseV1072(gaps);
+        if(Math.max(...gaps)-Math.min(...gaps)>Math.max(4,(vertical?g.mh:g.mw)*.12))return null;
+      }
+      const pageRepeat=vertical?H:W;
+      const pageCoverage=sizes.reduce((n,v)=>n+v,0)/Math.max(1,pageRepeat);
+      if(pageCoverage<.45)return null;
+      return {items,axis,count:items.length,spreadW:+spreadW.toFixed(4),spreadH:+spreadH.toFixed(4),
+        pageCoverage:+pageCoverage.toFixed(4),gaps,alignmentTolerance:+axisTol.toFixed(2)};
+    };
+    const __sparseProofsV1072=[];
+    for(const g of __sparseFamiliesV1072){
+      const y=__proveSparseAxisV1072(g,'y'),x=__proveSparseAxisV1072(g,'x');
+      if(y)__sparseProofsV1072.push(y);if(x)__sparseProofsV1072.push(x);
+    }
+    __sparseProofsV1072.sort((a,b)=>b.count-a.count||b.pageCoverage-a.pageCoverage);
+    __sparseSingleAxisFrameV1072=__sparseProofsV1072[0]||null;
+    if(__sparseSingleAxisFrameV1072){
+      unique.length=0;unique.push(...__sparseSingleAxisFrameV1072.items);
+      dbg.sparseSingleAxisFrameV1072={...__sparseSingleAxisFrameV1072,items:undefined,
+        applied:true,reason:'repeated-aligned-four-side-source-frames'};
+    }
+    }
+    dbg.accepted=unique.length;if(unique.length<4&&!__sparseSingleAxisFrameV1072){dbg.rejectedBoxesV1064=unique.map(r=>({x:r.x,y:r.y,w:r.w,h:r.h,cov:r.cov,threeSide:!!r.__threeSideFrameV592,score:r.score}));dbg.reason='too-few-closed-rectangles';return dbg;}
     const clusters=[];
     for(const r of unique){let g=clusters.find(g=>Math.abs(r.w-g.mw)<=Math.max(8,g.mw*.14)&&Math.abs(r.h-g.mh)<=Math.max(7,g.mh*.14));if(!g){g={items:[],mw:r.w,mh:r.h};clusters.push(g);}g.items.push(r);const sw=g.items.map(v=>v.w).sort((a,b)=>a-b),sh=g.items.map(v=>v.h).sort((a,b)=>a-b);g.mw=sw[Math.floor(sw.length/2)];g.mh=sh[Math.floor(sh.length/2)];}
     clusters.sort((a,b)=>b.items.length-a.items.length);let best=clusters[0];dbg.dominantCount=best.items.length;
@@ -2513,7 +2589,7 @@ function __detectLocalClosedFrameGraphV491(sourceImage){
     // mask: a common height family, repeated width families, repeated rows,
     // independent 3/4-side rectangles, and no overlapping candidates.
     let __variableWidthRowsV856=null;
-    if(best.items.length<4||best.items.length<Math.ceil(unique.length*.58)){
+    if(!__sparseSingleAxisFrameV1072&&(best.items.length<4||best.items.length<Math.ceil(unique.length*.58))){
       const med=a=>{const s=a.slice().sort((x,y)=>x-y);return s.length?s[Math.floor(s.length/2)]:0;};
       const mhAll=med(unique.map(r=>r.h)),mwAll=med(unique.map(r=>r.w));
       const heightFamily=unique.filter(r=>Math.abs(r.h-mhAll)<=Math.max(7,mhAll*.14));
@@ -2592,7 +2668,7 @@ function __detectLocalClosedFrameGraphV491(sourceImage){
     let boxes=best.items.slice().sort((a,b)=>Math.abs(a.cy-b.cy)<=Math.max(8,best.mh*.28)?a.x-b.x:a.y-b.y);
     const rowBands=[];for(const r of boxes){let row=rowBands.find(v=>Math.abs(v.cy-r.cy)<=Math.max(8,best.mh*.28));if(!row){row={cy:r.cy,items:[]};rowBands.push(row);}row.items.push(r);row.cy=row.items.reduce((n,v)=>n+v.cy,0)/row.items.length;}
     rowBands.sort((a,b)=>a.cy-b.cy);const maxCols=Math.max(...rowBands.map(v=>v.items.length));
-    const repeatedStructure=rowBands.length>=2||boxes.length>=5;if(!repeatedStructure){dbg.reason='not-repeated-layout';return dbg;}
+    const repeatedStructure=rowBands.length>=2||boxes.length>=5||!!__sparseSingleAxisFrameV1072;if(!repeatedStructure){dbg.reason='not-repeated-layout';return dbg;}
     // V495: contour boundingRect와 실제 프레임선은 ±3px 어긋날 수 있다.
     // 먼저 이미 검증된 line mask에서 실제 선 band를 찾고, 그 안쪽부터 AA를 측정한다.
     // cv.imread(c) already copied this exact RGBA canvas into `src`, which is
@@ -3355,7 +3431,7 @@ function __detectLocalClosedFrameGraphV491(sourceImage){
           Math.min(...cov)>=.78&&cov.reduce((a,b)=>a+b,0)>=3.52;
       })
     );
-    Object.assign(dbg,{applied:true,reason:__virtualOccupiedV668.fullMatrixFourSideCompletionV1032&&__virtualOccupiedV668.fullMatrixFourSideCompletionV1032.applied?'credible-repeated-local-frames-complete-four-side-matrix-v1032':__singleMissingV557.applied?'credible-repeated-local-frames-single-cell-restored':best.__variableWidthRowsV856?'credible-variable-width-independent-frame-rows-v856':'credible-repeated-local-frames-scaled-three-side',directCompleteSourceMatrixV1032:{applied:__directCompleteSourceMatrixV1032,reason:__directCompleteSourceMatrixV1032?'complete-phase-canonical-matrix-with-four-source-sides':'not-complete-phase-canonical-source-matrix',padding:false,resize:false},variableWidthIndependentRowsV856:!!best.__variableWidthRowsV856,verticalKernelV501:__localVerticalKernelV501,rows:rowBands.length,cols:__finalMaxColsV1032,count:out.length,medianW:(__publishFinalSpreadV1032?__finalMwV1032:best.mw)*toSourceV592,medianH:(__publishFinalSpreadV1032?__finalMhV1032:best.mh)*toSourceV592,sizeSpread:__publishFinalSpreadV1032?__finalSizeSpreadV1032:{w:+spreadW.toFixed(3),h:+spreadH.toFixed(3)},threeSideCount:out.filter(r=>r.__threeSideFrameV592).length,softInsetRepairsV776,boundaryAuditV779,boxes:out.map(r=>({x:r.x,y:r.y,w:r.w,h:r.h,insets:r.__sourceFrameInsetsV489,threeSideV592:!!r.__threeSideFrameV592,recoveredV557:!!r.__recoveredSingleMissingV557,phaseCanonicalV1032:r.__phaseCanonicalMatrixV1032||null,peerAxisRepairV1032:r.__peerAxisRepairV1032||null})),rects:out});
+    Object.assign(dbg,{applied:true,reason:__sparseSingleAxisFrameV1072?'credible-sparse-single-axis-four-side-frames-v1072':__virtualOccupiedV668.fullMatrixFourSideCompletionV1032&&__virtualOccupiedV668.fullMatrixFourSideCompletionV1032.applied?'credible-repeated-local-frames-complete-four-side-matrix-v1032':__singleMissingV557.applied?'credible-repeated-local-frames-single-cell-restored':best.__variableWidthRowsV856?'credible-variable-width-independent-frame-rows-v856':'credible-repeated-local-frames-scaled-three-side',sparseSingleAxisFrameV1072:__sparseSingleAxisFrameV1072?{...dbg.sparseSingleAxisFrameV1072}:null,directCompleteSourceMatrixV1032:{applied:__directCompleteSourceMatrixV1032,reason:__directCompleteSourceMatrixV1032?'complete-phase-canonical-matrix-with-four-source-sides':'not-complete-phase-canonical-source-matrix',padding:false,resize:false},variableWidthIndependentRowsV856:!!best.__variableWidthRowsV856,verticalKernelV501:__localVerticalKernelV501,rows:rowBands.length,cols:__finalMaxColsV1032,count:out.length,medianW:(__publishFinalSpreadV1032?__finalMwV1032:best.mw)*toSourceV592,medianH:(__publishFinalSpreadV1032?__finalMhV1032:best.mh)*toSourceV592,sizeSpread:__publishFinalSpreadV1032?__finalSizeSpreadV1032:{w:+spreadW.toFixed(3),h:+spreadH.toFixed(3)},threeSideCount:out.filter(r=>r.__threeSideFrameV592).length,softInsetRepairsV776,boundaryAuditV779,boxes:out.map(r=>({x:r.x,y:r.y,w:r.w,h:r.h,insets:r.__sourceFrameInsetsV489,threeSideV592:!!r.__threeSideFrameV592,recoveredV557:!!r.__recoveredSingleMissingV557,phaseCanonicalV1032:r.__phaseCanonicalMatrixV1032||null,peerAxisRepairV1032:r.__peerAxisRepairV1032||null})),rects:out});
     return dbg;
   }catch(e){dbg.reason='detector-error';dbg.error=String(e);return dbg;}
   finally{for(const m of [src,gray,bin,mh,mv,mask,joined,contours,hierarchy,hk,vk,jk])try{m&&m.delete();}catch(e){}}
@@ -6535,6 +6611,39 @@ const __requireV831FullV1017=consumer=>
     consumer,
     ()=>__detectRepeatedSheetGridV831(sourceImage)
   );
+// V1075: one engine-neutral proof joins a repeated boundary population to
+// the independently measured physical-frame population. Detection establishes
+// the cells; this proof establishes only that the same cells own real four-side
+// frames. It never publishes Tight or Frame coordinates by itself.
+function __proveRepeatedPhysicalPopulationV1075(boundary,frameGraph){
+  const b=(boundary&&boundary.boxes||[]).filter(Boolean);
+  const f=(frameGraph&&frameGraph.rects||[]).filter(Boolean);
+  const overlap=(a,q)=>{
+    const x0=Math.max(a.x,q.x),y0=Math.max(a.y,q.y);
+    const x1=Math.min(a.x+a.w,q.x+q.w),y1=Math.min(a.y+a.h,q.y+q.h);
+    return Math.max(0,x1-x0)*Math.max(0,y1-y0)/
+      Math.max(1,Math.min(a.w*a.h,q.w*q.h));
+  };
+  const fourSide=f.filter(r=>{
+    const cov=['L','R','T','B'].map(s=>Number(r&&r.cov&&r.cov[s])||0);
+    return Math.min(...cov)>=.78&&cov.reduce((a,v)=>a+v,0)>=3.52;
+  }).length;
+  const minSupport=Math.max(2,Math.ceil(f.length*.72));
+  const applied=!!(
+    boundary&&boundary.applied&&frameGraph&&frameGraph.applied&&
+    Number(boundary.count)===Number(frameGraph.count)&&
+    Number(boundary.rows)===Number(frameGraph.rows)&&
+    Number(boundary.cols)===Number(frameGraph.cols)&&
+    b.length===f.length&&fourSide>=minSupport&&
+    b.every(a=>f.some(q=>overlap(a,q)>=.78))&&
+    f.every(a=>b.some(q=>overlap(a,q)>=.78))
+  );
+  return {applied,boundaryCount:b.length,frameCount:f.length,
+    fourSide,minSupport,rows:Number(boundary&&boundary.rows)||0,
+    cols:Number(boundary&&boundary.cols)||0,
+    reason:applied?'same-complete-repeated-physical-frame-population':
+      'population-or-four-side-proof-incomplete'};
+}
 const __requireV887FullV1017=consumer=>
   __sourceAnalysisContextV1017.require(
     'v887.full',
@@ -6560,6 +6669,7 @@ let __completeFramedGridRouteV1018=null;
 // once, before CV allocation, only behind its existing cheap dark-canvas gate.
 // A failed proof changes nothing; the ordinary contour path remains intact.
 let __gridDetachedBlackEarlyV970=null;
+let __gridRepeatedPhysicalEarlyV1075=null;
 // V953: AUTO may route the same source into direct GRID immediately after
 // this preflight.  Reuse the exact projection result instead of drawing and
 // scanning the source a second time.  This is analysis memoization only:
@@ -6601,6 +6711,11 @@ if(__engineModeEarlyV256==='auto'){
   const __earlyFrameGraphV1018=__detectLocalClosedFrameGraphV491(sourceImage);
   const __earlyFrameClassV1018=
     __classifyCompleteFramedGridV1018(__earlyFrameGraphV1018,sourceImage);
+  const __repeatedPhysicalProofV1075=
+    __proveRepeatedPhysicalPopulationV1075(
+      __autoRepeatedSheetV939,__earlyFrameGraphV1018);
+  const __repeatedV831PhysicalRouteV1073=
+    __repeatedPhysicalProofV1075.applied;
   const __v831NearMissCellsV1029=
     (Number(__autoRepeatedSheetV939.rows)||0)*
     (Number(__autoRepeatedSheetV939.cols)||0);
@@ -6911,7 +7026,8 @@ if(__engineModeEarlyV256==='auto'){
   // GRID fast path without first rendering an OpenCV result.  Anything less
   // certain remains AUTO so the established V269 result check can decide
   // whether lazy GRID comparison is actually necessary.
-  const selected=__routeCertificateAppliedV1018
+  const selected=(__routeCertificateAppliedV1018||
+    __repeatedV831PhysicalRouteV1073)
     ?'opencv'
     :(!framedHasVirtualCellsV1067&&!earlyFrameHasVirtualCellsV1067&&!p.abort&&(
       regularLattice||
@@ -6946,12 +7062,14 @@ if(__engineModeEarlyV256==='auto'){
         (framedLatticeV935?'bounded-lattice-v491-source-frame-grid-v935':
           (sharedGutterV935.applied?'bounded-lattice-shared-gutter-grid-v935':
             'bounded-lattice-v491-subset-to-direct-grid-v943'))))
+      :(__repeatedV831PhysicalRouteV1073
+        ?'v831-v491-same-complete-physical-frame-population-v1073'
       :(__routeCertificateAppliedV1018
         ?__completeFramedGridRouteV1018.reason
       :(__autoRepeatedSheetV939.applied
         ?'existing-v831-repeated-sheet-fast-opencv-v939'
       :(p.abort?'complex-or-overdense-layout-opencv':
-        (!regularLattice?'no-strict-regular-lattice-opencv':'clean-or-low-ink-lattice-opencv')))),
+        (!regularLattice?'no-strict-regular-lattice-opencv':'clean-or-low-ink-lattice-opencv'))))),
     projection:p,
     boundedLattice,
     regularLattice,
@@ -6973,6 +7091,8 @@ if(__engineModeEarlyV256==='auto'){
     completeBackgroundIslandsVeto:completeBackgroundIslandsV949,
     repeatedSheetApplied:!!(__autoRepeatedSheetV939&&__autoRepeatedSheetV939.applied),
     repeatedSheetReason:__autoRepeatedSheetV939&&__autoRepeatedSheetV939.reason,
+    repeatedV831PhysicalRouteV1073:__repeatedV831PhysicalRouteV1073,
+    repeatedPhysicalProofV1075:__repeatedPhysicalProofV1075,
     completeFramedGridRouteV1018:__completeFramedGridRouteV1018,
     directEngineOnly:selected==='rfee',
     autoStatePreserved:selected!=='rfee',
@@ -7044,6 +7164,20 @@ if(__engineModeEarlyV256 === 'rfee'){
   }
   if(__nearBlackCanvasGateV939(sourceImage)){
     __gridDetachedBlackEarlyV970=__detectDetachedBlack4x2V801(sourceImage);
+    // V1075: a failed specialized detector never hands its coordinates to the
+    // result. The engine-neutral repeated-population proof may supply only the
+    // candidate cells; the existing V947 frame contract below still chooses
+    // the measured inner (Tight) or outer (Frame) source rectangle.
+    if(!__gridDetachedBlackEarlyV970.applied&&
+       __batchCropModeRequestedV1003==='tight'&&
+       !__batchFrameRestoreRequestedV764){
+      const boundary=__requireV831FullV1017(
+        'direct-grid-repeated-physical-candidates');
+      const frameGraph=__detectLocalClosedFrameGraphV491(sourceImage);
+      const proof=__proveRepeatedPhysicalPopulationV1075(boundary,frameGraph);
+      if(proof.applied)
+        __gridRepeatedPhysicalEarlyV1075={boundary,frameGraph,proof};
+    }
   }
 }
 
@@ -8092,9 +8226,10 @@ const __v831CoordinateOwnerV1056=(()=>{
   const sheetBackgroundSlots=Math.max(0,
     Number(__opencvDetachedBlackV821.backgroundSlotsV1059)||0);
   const repeatedMayOwn=!!(
-    sparseSingleAxis||
-    sheetBackgroundSlots>0||
-    (__sharedLocalClosedV854.applied&&countMatches&&!directComparable));
+    !directComparable&&(
+      sparseSingleAxis||
+      sheetBackgroundSlots>0||
+      (__sharedLocalClosedV854.applied&&countMatches)));
   Object.assign(out,{applied:repeatedMayOwn,
     reason:directComparable?'direct-consistent-individual-frames-own':
       (sparseSingleAxis?'sparse-repeat-after-individual-frame-analysis':
@@ -8136,8 +8271,12 @@ const __reconcileOpenCvWithV491FinalPopulationV907=(src,graph)=>{
     matched:0,added:0,padding:false,resize:false};
   const frames=(graph&&Array.isArray(graph.rects)?graph.rects:[]).filter(Boolean);
   const populationDelta=frames.length-before.length;
-  if(!graph||!graph.applied||before.length<4||(populationDelta!==0&&populationDelta!==1)){
+  const repeatedSourcePopulation=!!(graph&&graph.applied&&
+    ((Number(graph.rows)||0)>=2||(Number(graph.cols)||0)>=2));
+  if(!repeatedSourcePopulation||before.length<2||
+     (populationDelta!==0&&populationDelta!==1)){
     out.reason=!graph||!graph.applied?'v491-not-applied':
+      !repeatedSourcePopulation?'v491-source-population-not-repeated':
       (populationDelta!==0&&populationDelta!==1)?'source-frame-population-delta-not-zero-or-one':
       'too-few-opencv-candidates';
     return {boxes:before,debug:out};
@@ -8378,6 +8517,11 @@ if(__coordinateNeedsV887V1017&&
 }
 window.__SOURCE_EXECUTION_PLAN_V1017__=
   __sourceExecutionPlanV1017.snapshot();
+// V1080: a one-to-one equal population proves that the ordinary OpenCV
+// population is complete, but it does not transfer coordinate ownership to
+// V887.  Keep the evidence available to AUTO while V892 retains the original
+// OpenCV rectangles unless OpenCV actually contains additional fragments.
+let __opencvEqualPopulationEvidenceV1080=false;
 const __reconcileBackgroundIslandsV892=(boxes)=>{
   const src=(boxes||[]).slice();
   if(__isV887DeferredV1017(__opencvBackgroundIslandsV887)){
@@ -8431,9 +8575,12 @@ const __reconcileBackgroundIslandsV892=(boxes)=>{
     }
     return remaining.length===0;
   })();
-  const adopt=islands.length>=2&&covered===islands.length&&(
-    src.length>=islands.length+1||__equalPopulationOneToOneV1062
-  );
+  __opencvEqualPopulationEvidenceV1080=__equalPopulationOneToOneV1062;
+  // V1080: V887 may replace coordinates only when ordinary OpenCV contains
+  // additional fragments.  Equal one-to-one populations use V887 as
+  // completeness evidence only and preserve the ordinary OpenCV coordinates.
+  const adopt=islands.length>=2&&covered===islands.length&&
+    src.length>=islands.length+1;
   const reconciled=adopt
     ? (__opencvBackgroundIslandsV887.partial
         ? src.filter(r=>!islands.some(a=>inside(r,a))).concat(islands.map(r=>({...r})))
@@ -8966,8 +9113,12 @@ function __detectRepeatedSheetGridV831(img){
       }
       colOcc[x]=best;colFlagsV1018[x]=best>.18?1:0;
     }
+    // V1072: keep one broad cross-axis run long enough to evaluate the
+    // existing sparse-single-axis contract. The former 90% filter discarded
+    // that run before repetition, alignment and background evidence could
+    // judge it. Multi-column sheets retain the unchanged 55% member limit.
     const __columnRunsV1056=runs(colFlagsV1018,Math.max(2,Math.round(sw*.004)))
-      .filter(q=>q.n>=sw*.035&&q.n<=sw*.90);
+      .filter(q=>q.n>=sw*.035&&q.n<=sw*.98);
     const cols=__columnRunsV1056.length===1
       ?__columnRunsV1056
       :__columnRunsV1056.filter(q=>q.n<=sw*.55);
@@ -9184,11 +9335,33 @@ function __detectRepeatedSheetGridV831(img){
       }
       b.rawW=b.R-b.L+1;b.rawH=b.B-b.T+1;b.__projectionShoulderV1065=peeled;
     }
-    // The repeated row band owns height. Full-resolution pixel scans verify the
-    // family but do not expand it by a one-pixel JPEG shoulder.
-    const targetW=med(refined.map(b=>b.rawW)),targetH=projectionShoulderPeeledV1065?med(refined.map(b=>b.rawH)):med(coarse.map(b=>b.h));
+    // V1078: when the existing V1065 proof removes a sheet-colour shoulder
+    // from any member on one axis, publish that axis atomically at the
+    // smallest already-measured content extent.  Publishing mixed 357/358
+    // extents lets the later common-size stage duplicate an edge pixel back
+    // into only the smaller cells.  This is the same source-coordinate
+    // minimum contract used by V622: no padding, resize, new threshold or
+    // additional raster scan is introduced.
+    const projectionShoulderPeeledXV1078=refined.some(b=>{
+      const q=b.__projectionShoulderV1065||{};
+      return Number(q.L)>0||Number(q.R)>0;
+    });
+    const projectionShoulderPeeledYV1078=refined.some(b=>{
+      const q=b.__projectionShoulderV1065||{};
+      return Number(q.T)>0||Number(q.B)>0;
+    });
+    const targetW=projectionShoulderPeeledXV1078
+      ?Math.min(...refined.map(b=>b.rawW))
+      :med(refined.map(b=>b.rawW));
+    const targetH=projectionShoulderPeeledYV1078
+      ?Math.min(...refined.map(b=>b.rawH))
+      :med(coarse.map(b=>b.h));
     if(refined.some(b=>Math.abs(b.rawW-targetW)>Math.max(4,targetW*.006)||Math.abs(b.rawH-targetH)>Math.max(4,targetH*.006)))return {...out,reason:'full-resolution-boundary-family-not-repeated',rows:rows.length,cols:cols.length};
-    const boxes=refined.map(b=>({x:b.L,y:b.T,w:targetW,h:targetH,__engine:'opencv',__opencvRepeatedGridV830:true,...(b.__projectionShoulderV1065?{__sourceBoundaryProjectionV1065:b.__projectionShoulderV1065}:{}),...(b.__sheetBackgroundSlotV1059?{__sheetBackgroundSlotV1059:true}:{}),__cellV830:{row:b.row,col:b.col,owner:'full-resolution-repeated-cell-boundary-v830'}}));
+    const boxes=refined.map(b=>({x:b.L,y:b.T,w:targetW,h:targetH,
+      __engine:'opencv',__opencvRepeatedGridV830:true,
+      ...(b.__projectionShoulderV1065?{__sourceBoundaryProjectionV1065:b.__projectionShoulderV1065}:{}),
+      ...(b.__sheetBackgroundSlotV1059?{__sheetBackgroundSlotV1059:true}:{}),
+      __cellV830:{row:b.row,col:b.col,owner:'full-resolution-repeated-cell-boundary-v830'}}));
     return {...out,applied:true,reason:'strict-repeated-sheet-grid-v831',
       count:boxes.length,rows:rows.length,cols:cols.length,
       backgroundSlotsV1059:__backgroundSlotsV1059,
@@ -9201,6 +9374,11 @@ function __detectRepeatedSheetGridV831(img){
       bgRGB:bgRGB.map(v=>+v.toFixed(1)),
       backgroundRatio:+backgroundRatio.toFixed(3),
       wSpread:+wSpread.toFixed(4),hSpread:+hSpread.toFixed(4),
+      projectionShoulderAtomicV1078:{
+        x:projectionShoulderPeeledXV1078,
+        y:projectionShoulderPeeledYV1078,
+        policy:'minimum-measured-content-extent-no-padding'
+      },
       medianW:targetW,medianH:targetH,boxes};
   }catch(e){return {...out,reason:'exception',error:String(e&&e.message||e)};}
 }
@@ -9992,6 +10170,21 @@ if (engineMode === 'rfee' && __borderlessRuledSheetV972.applied) {
   filtered=rfeeBoxes;
   chosenEngine='rfee';
   window.__GRID_DETACHED_BLACK_FASTPATH_V801__={applied:true,reason:__detachedBlack4x2V801.reason,count:8,rfEEExecuted:false};
+} else if (engineMode === 'rfee' && __gridRepeatedPhysicalEarlyV1075&&
+           __gridRepeatedPhysicalEarlyV1075.proof.applied) {
+  rfeeBoxes=__gridRepeatedPhysicalEarlyV1075.boundary.boxes.map(r=>({...r,
+    __engine:'rfee-repeated-physical-candidate-v1075'}));
+  filtered=rfeeBoxes;
+  chosenEngine='rfee';
+  window.__GRID_REPEATED_PHYSICAL_CANDIDATES_V1075__={
+    applied:true,
+    reason:'candidate-population-only-final-frame-contract-pending',
+    count:rfeeBoxes.length,
+    rows:__gridRepeatedPhysicalEarlyV1075.boundary.rows,
+    cols:__gridRepeatedPhysicalEarlyV1075.boundary.cols,
+    proof:__gridRepeatedPhysicalEarlyV1075.proof,
+    rfEEExecuted:false,padding:false,resize:false
+  };
 } else if (engineMode === 'rfee') {
   // V473: GRID 직접 선택에서 일반 RFEE가 노이즈로 실패하기 전에,
   // 매우 제한적인 V472 옅은 희소 격자만 독립 preflight로 먼저 확인한다.
@@ -10028,8 +10221,11 @@ if (engineMode === 'rfee' && __borderlessRuledSheetV972.applied) {
     __v491MayPreemptOrdinaryRfeeV1051R2&&
     __gridLocalClosedPreflightV501.applied&&
     ((__gridLocalClosedPreflightV501.count||0)>=6||
-     __v501CompleteSmallMatrixV1069)&&
-    (__gridLocalClosedPreflightV501.rows||0)>=2&&
+     __v501CompleteSmallMatrixV1069||
+     (__gridLocalClosedPreflightV501.sparseSingleAxisFrameV1072&&
+      __gridLocalClosedPreflightV501.sparseSingleAxisFrameV1072.applied))&&
+    ((__gridLocalClosedPreflightV501.rows||0)>=2||
+     (__gridLocalClosedPreflightV501.cols||0)>=2)&&
     (__gridLocalClosedPreflightV501.variableWidthIndependentRowsV856||(
     __lcDominantRatioV501>=.90&&
     (__lcSpreadV501.w||0)<=.08))&&
@@ -12119,6 +12315,13 @@ if (engineMode === 'rfee' && __borderlessRuledSheetV972.applied) {
     cvBoxes.length===(__opencvBackgroundIslandsV887.boxes||[]).length&&
     cvBoxes.every(r=>r&&r.__opencvBackgroundIslandV887===true)
   );
+  const __cvEqualPopulationValidatedOpenCvV1080=!!(
+    __opencvEqualPopulationEvidenceV1080&&cvBoxes.length>=2&&
+    __opencvBackgroundIslandsV887&&
+    __opencvBackgroundIslandsV887.applied&&
+    !__opencvBackgroundIslandsV887.partial&&
+    cvBoxes.length===(__opencvBackgroundIslandsV887.boxes||[]).length
+  );
 
   const __useBlockGridAutoV358 = __shouldUseBlockGridFallbackV358((chooseGrid ? rfeeBoxes : cvBoxes), __blockGridInfoV358, 'auto');
   const __lineAutoLockV440 = !!(
@@ -12131,7 +12334,7 @@ if (engineMode === 'rfee' && __borderlessRuledSheetV972.applied) {
   // V440: when the independent frame-line path has already replaced a fragmented
   // OpenCV contour set with a credible rectangle set, AUTO must not discard it
   // in favour of RFEE/Grid over-detection.
-  if (__cvCompleteMixedSourceRegionsV1062) {
+  if (__cvCompleteMixedSourceRegionsV1062||__cvEqualPopulationValidatedOpenCvV1080) {
     filtered = cvBoxes;
     chosenEngine = 'opencv';
   } else if (__lineAutoLockV440) {
@@ -12191,6 +12394,7 @@ if (engineMode === 'rfee' && __borderlessRuledSheetV972.applied) {
     cvRandomLayoutAcceptV281: !!cvRandomLayoutAcceptV281,
     cvIndependentFrameSetV855: window.__AUTO_INDEPENDENT_FRAME_SET_V855__ || null,
     cvCompleteMixedSourceRegionsV1062: !!__cvCompleteMixedSourceRegionsV1062,
+    cvEqualPopulationValidatedOpenCvV1080: !!__cvEqualPopulationValidatedOpenCvV1080,
     cvCleanByShapeV283: !!cvCleanByShapeV283,
     cvGridTieCleanAcceptV283: !!cvGridTieCleanAcceptV283,
     cvRandomWinsV282: !!(typeof cvRandomWinsV282!=='undefined' && cvRandomWinsV282),
@@ -16822,8 +17026,11 @@ const __backgroundIslandFramelessV993=!!(__autoBackgroundIslandsV939&&
   (__autoBackgroundIslandsV939.boxes||[]).length>=2);
 // V752: restoration is an output operation, never a coordinate mode.  Run the
 // complete engine removal pipeline (including V463/V667/V322) as Tight first.
-let cropMode = (__frameRestoreRequestedV752||
-  (__requestedCropModeV752==='frame'&&__backgroundIslandFramelessV993))
+// V1072: V887 describes separated image topology; it does not own the user's
+// output mode. Frame restoration still runs through Tight, while an ordinary
+// Frame Keep request remains immutable until the common physical-frame proof
+// below decides whether an outer frame actually exists.
+let cropMode = __frameRestoreRequestedV752
   ?'tight':__requestedCropModeV752;
 window.__GRID_LATTICE_COORD_NORMALIZE_DEBUG__=__normalizeCompleteGridLatticeCoordsV459(ordered,__groupOrderV447.debug,cropMode);
 console.log('[GRID_LATTICE_COORD_NORMALIZE_DEBUG]',window.__GRID_LATTICE_COORD_NORMALIZE_DEBUG__);
@@ -18622,6 +18829,41 @@ const __rawFrameContractsV554=ordered.map(r=>{
       reason:'opencv-contour-supported-frameless-source-boundary-v922',
       outer:{...q},inner:{...q},noFrameCrop:true,
       opencvFramelessGutterV922:true,padding:false,resize:false};
+  }
+  // V1079: V907 adopts V491's final source-frame rectangles only after a
+  // complete one-to-one population match.  Those rectangles already carry
+  // the source-measured L/R/T/B insets; sending them back through V554 can
+  // reinterpret dark picture content as a 25px frame.  Translate the existing
+  // outer+inset representation into the standard V554 outer/inner contract
+  // without another pixel scan or a new thickness rule.
+  if(r&&r.__opencvV491FinalPopulationOwnerV907&&
+     r.__sourceFrameInsetsV489){
+    const si=r.__sourceFrameInsetsV489;
+    const outer={x:Math.round(r.x),y:Math.round(r.y),
+      w:Math.round(r.w),h:Math.round(r.h)};
+    const inset={L:Math.round(Number(si.L)||0),
+      R:Math.round(Number(si.R)||0),
+      T:Math.round(Number(si.T)||0),
+      B:Math.round(Number(si.B)||0)};
+    const inner={x:outer.x+inset.L,y:outer.y+inset.T,
+      w:outer.w-inset.L-inset.R,h:outer.h-inset.T-inset.B};
+    if(inner.w>=20&&inner.h>=20&&
+       ['L','R','T','B'].every(s=>inset[s]>=1)){
+      return {
+        version:'v1079-v491-final-population-source-frame-contract',
+        applied:true,reason:'four-source-frame-lines-proven',
+        outer,inner,
+        sides:{
+          L:{outer:outer.x,inner:inner.x,thickness:inset.L},
+          R:{outer:outer.x+outer.w-1,inner:inner.x+inner.w-1,
+            thickness:inset.R},
+          T:{outer:outer.y,inner:inner.y,thickness:inset.T},
+          B:{outer:outer.y+outer.h-1,inner:inner.y+inner.h-1,
+            thickness:inset.B}
+        },
+        v491FinalPopulationOwnerV907:true,padding:false,resize:false
+      };
+    }
   }
   // V887 coordinates are the source image pixels themselves.  They have no
   // outside frame envelope and must not be challenged by legacy edge scans.
@@ -21284,6 +21526,38 @@ const __physicalFrameProofV993=(()=>{
       pairAgrees(t.L,t.R)&&pairAgrees(t.T,t.B);
   }).length;
   const repeatedBalancedLocalClosed=balancedLocalClosed>=minSupport;
+  // V1072: the sparse one-axis population is already a source-owned V491
+  // four-side frame proof. Its coordinates may remain owned by V831/OpenCV or
+  // GRID, but V887 must not reinterpret those physical lines as frameless
+  // picture islands. Reuse the memoized graph; no additional raster pass.
+  const __sparseFrameGraphV1072=window.__GRID_LOCAL_CLOSED_FRAME_V491__;
+  const __sparseGraphRectsV1072=(__sparseFrameGraphV1072&&
+    __sparseFrameGraphV1072.rects||[]).filter(Boolean);
+  const __sparseOrderedRectsV1072=(ordered||[]).filter(Boolean);
+  const __sparseProofOverlapV1072=(a,b)=>{
+    const x0=Math.max(a.x,b.x),y0=Math.max(a.y,b.y);
+    const x1=Math.min(a.x+a.w,b.x+b.w),y1=Math.min(a.y+a.h,b.y+b.h);
+    return Math.max(0,x1-x0)*Math.max(0,y1-y0)/
+      Math.max(1,Math.min(a.w*a.h,b.w*b.h));
+  };
+  const sparseGraphFourSide=!!(
+    __sparseFrameGraphV1072&&__sparseFrameGraphV1072.applied&&
+    __sparseFrameGraphV1072.image&&
+    Number(__sparseFrameGraphV1072.image.w)===Number(sourceImage.width)&&
+    Number(__sparseFrameGraphV1072.image.h)===Number(sourceImage.height)&&
+    __sparseFrameGraphV1072.sparseSingleAxisFrameV1072&&
+    __sparseFrameGraphV1072.sparseSingleAxisFrameV1072.applied&&
+    __sparseGraphRectsV1072.length>=minSupport&&
+    __sparseGraphRectsV1072.length===__sparseOrderedRectsV1072.length&&
+    __sparseGraphRectsV1072.every(r=>{
+      const cov=['L','R','T','B'].map(s=>Number(r&&r.cov&&r.cov[s])||0);
+      return Math.min(...cov)>=.78&&cov.reduce((a,b)=>a+b,0)>=3.52;
+    })&&
+    __sparseGraphRectsV1072.every(a=>
+      __sparseOrderedRectsV1072.some(b=>__sparseProofOverlapV1072(a,b)>=.78))&&
+    __sparseOrderedRectsV1072.every(a=>
+      __sparseGraphRectsV1072.some(b=>__sparseProofOverlapV1072(a,b)>=.78))
+  );
   // V701 is the OpenCV detector's final four-line coordinate verification.
   // Unlike a colour/background island, every accepted box owns four edge
   // coverages plus opposite-side geometry balance before it reaches `ordered`.
@@ -21314,16 +21588,19 @@ const __physicalFrameProofV993=(()=>{
   // frame population was measured. It must not veto repeated four-line source
   // observations, including genuinely axis-asymmetric frames.
   const proven=directAxes||repeatedContracts||repeatedRawFourSide||
-    repeatedVerifiedClosedBoxes||structuralFrameLattice;
+    sparseGraphFourSide||repeatedVerifiedClosedBoxes||
+    structuralFrameLattice;
   return {version:'v993-repeated-physical-frame-presence',proven,
     reason:directAxes?'repeated-direct-bands-both-axes':
       repeatedContracts?'repeated-four-side-contracts':
       repeatedRawFourSide?'repeated-raw-four-side-source-frames':
+      sparseGraphFourSide?'sparse-single-axis-four-source-side-frames-v1072':
       repeatedVerifiedClosedBoxes?'repeated-v701-verified-closed-frames':
       structuralFrameLattice?'repeated-physical-pencil-frame-lattice':
       (__backgroundIslandFramelessV993?'separated-background-pictures':'no-repeated-two-axis-frame'),
     minSupport,vertical,horizontal,fourSideContracts,rawFourSideContracts,
-    balancedLocalClosed,verifiedClosedBoxes,structuralFrameLattice,
+    balancedLocalClosed,sparseGraphFourSide,verifiedClosedBoxes,
+    structuralFrameLattice,
     localEvidenceSample:(ordered||[]).slice(0,3).map(r=>({
       sourceLatticeExactV489:!!(r&&r.__sourceLatticeExactV489),
       localClosedFrameV491:!!(r&&r.__localClosedFrameV491),
