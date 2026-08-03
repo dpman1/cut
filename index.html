@@ -18757,7 +18757,20 @@ function __measureOpenCvActualFrameContractV554(r){
   const pv=r&&r.__opencvProtectionV551||null;
   const structuralX=pv?Math.ceil(Math.max(Number(pv.L)||0,Number(pv.R)||0)/2)+4:0;
   const structuralY=pv?Math.ceil(Math.max(Number(pv.T)||0,Number(pv.B)||0)/2)+4:0;
-  const baseLimX=Math.max(6,Math.min(24,Math.round(r.w*.065))),baseLimY=Math.max(6,Math.min(18,Math.round(r.h*.10)));
+  // V1080: a V907 rectangle is only a source-frame OUTER proposal.  Its
+  // downscaled V491 inset is lower-bound evidence, not the terminal stroke
+  // thickness.  Measure this coordinate class at source resolution with the
+  // same 6.5% minimum-axis neighbourhood already used by V686/V693 when
+  // admitting source-frame evidence.  All other V554 callers retain their
+  // established limits byte-for-byte.
+  const __v907OriginalThicknessMeasureV1080=!!(r&&r.__opencvV491FinalPopulationOwnerV907);
+  const __sourceFrameEvidenceLimitV1080=Math.max(6,Math.round(Math.min(r.w,r.h)*.065));
+  const baseLimX=__v907OriginalThicknessMeasureV1080
+    ?__sourceFrameEvidenceLimitV1080
+    :Math.max(6,Math.min(24,Math.round(r.w*.065)));
+  const baseLimY=__v907OriginalThicknessMeasureV1080
+    ?__sourceFrameEvidenceLimitV1080
+    :Math.max(6,Math.min(18,Math.round(r.h*.10)));
   const limX=pv?Math.min(48,Math.max(baseLimX,structuralX)):baseLimX,limY=pv?Math.min(36,Math.max(baseLimY,structuralY)):baseLimY;
   const sourceSamplerV711=__createSourceGraySamplerV711(r,limX+2,limY+2);
   if(!sourceSamplerV711){out.reason='source-roi-pixels-unavailable';return out;}
@@ -18818,6 +18831,26 @@ ordered.forEach(r=>{const q=r&&r.__independentSourceRectV836;if(!q)return;r.x=q.
 // selection, topology, and every other sample retain the V838 threshold.
 const __mixedMeasuredGridV839=/^(rfee(?:-|$)|blockgrid(?:-|$)|dark-gutter-lattice$|explicit-pencil-frame-grid$|source-vertical-run-lattice-v488$)/.test(String(chosenEngine||'').toLowerCase())&&ordered.some(r=>r&&r.__independentClosedFrameV836);
 const __opencvRepeatedFrameEvidenceV947=[];
+const __v907StoredV491FrameContractV1080=r=>{
+  if(!(r&&r.__opencvV491FinalPopulationOwnerV907&&r.__sourceFrameInsetsV489))return null;
+  const si=r.__sourceFrameInsetsV489;
+  const outer={x:Math.round(r.x),y:Math.round(r.y),w:Math.round(r.w),h:Math.round(r.h)};
+  const inset={L:Math.round(Number(si.L)||0),R:Math.round(Number(si.R)||0),T:Math.round(Number(si.T)||0),B:Math.round(Number(si.B)||0)};
+  const inner={x:outer.x+inset.L,y:outer.y+inset.T,w:outer.w-inset.L-inset.R,h:outer.h-inset.T-inset.B};
+  if(inner.w<20||inner.h<20||['L','R','T','B'].some(s=>inset[s]<1))return null;
+  return {
+    version:'v1080-v491-source-inset-fallback-contract',applied:true,
+    reason:'four-source-frame-lines-proven',outer,inner,
+    sides:{
+      L:{outer:outer.x,inner:inner.x,thickness:inset.L},
+      R:{outer:outer.x+outer.w-1,inner:inner.x+inner.w-1,thickness:inset.R},
+      T:{outer:outer.y,inner:inner.y,thickness:inset.T},
+      B:{outer:outer.y+outer.h-1,inner:inner.y+inner.h-1,thickness:inset.B}
+    },
+    v491FinalPopulationOwnerV907:true,v491FallbackV1080:true,
+    padding:false,resize:false
+  };
+};
 const __rawFrameContractsV554=ordered.map(r=>{
   // V922: these coordinates were admitted only after the explicit OpenCV
   // contour population independently supported every source cell.  They are
@@ -18830,41 +18863,11 @@ const __rawFrameContractsV554=ordered.map(r=>{
       outer:{...q},inner:{...q},noFrameCrop:true,
       opencvFramelessGutterV922:true,padding:false,resize:false};
   }
-  // V1079: V907 adopts V491's final source-frame rectangles only after a
-  // complete one-to-one population match.  Those rectangles already carry
-  // the source-measured L/R/T/B insets; sending them back through V554 can
-  // reinterpret dark picture content as a 25px frame.  Translate the existing
-  // outer+inset representation into the standard V554 outer/inner contract
-  // without another pixel scan or a new thickness rule.
-  if(r&&r.__opencvV491FinalPopulationOwnerV907&&
-     r.__sourceFrameInsetsV489){
-    const si=r.__sourceFrameInsetsV489;
-    const outer={x:Math.round(r.x),y:Math.round(r.y),
-      w:Math.round(r.w),h:Math.round(r.h)};
-    const inset={L:Math.round(Number(si.L)||0),
-      R:Math.round(Number(si.R)||0),
-      T:Math.round(Number(si.T)||0),
-      B:Math.round(Number(si.B)||0)};
-    const inner={x:outer.x+inset.L,y:outer.y+inset.T,
-      w:outer.w-inset.L-inset.R,h:outer.h-inset.T-inset.B};
-    if(inner.w>=20&&inner.h>=20&&
-       ['L','R','T','B'].every(s=>inset[s]>=1)){
-      return {
-        version:'v1079-v491-final-population-source-frame-contract',
-        applied:true,reason:'four-source-frame-lines-proven',
-        outer,inner,
-        sides:{
-          L:{outer:outer.x,inner:inner.x,thickness:inset.L},
-          R:{outer:outer.x+outer.w-1,inner:inner.x+inner.w-1,
-            thickness:inset.R},
-          T:{outer:outer.y,inner:inner.y,thickness:inset.T},
-          B:{outer:outer.y+outer.h-1,inner:inner.y+inner.h-1,
-            thickness:inset.B}
-        },
-        v491FinalPopulationOwnerV907:true,padding:false,resize:false
-      };
-    }
-  }
+  // V1080: do not terminate V907 at V491's downscaled inset.  V491 owns the
+  // complete population and outer proposal; the ordinary V554 source scan
+  // below measures the physical stroke at original resolution.  Population-
+  // wide arbitration immediately after this map either accepts those four
+  // balanced source sides or atomically restores the stored V491 contract.
   // V887 coordinates are the source image pixels themselves.  They have no
   // outside frame envelope and must not be challenged by legacy edge scans.
   if(r&&(r.__opencvBackgroundIslandV887||r.__gridRecursiveBackgroundV889)){
@@ -18927,6 +18930,50 @@ const __rawFrameContractsV554=ordered.map(r=>{
   if(q)q.measureAnchorV688=o?'source-observed-v187-fallback':'nominal-cell-fallback';
   return q;
 });
+// V1080 atomic V907 thickness ownership.  Original-pixel measurements own the
+// population only when every member proves all four sides, each opposite pair
+// describes one physical stroke, and no measured side retreats inside V491's
+// already-proven minimum inset.  If any member fails, the entire population
+// keeps the pre-existing V491 coordinates.  This prevents picture ink on one
+// bus panel from becoming a frame while allowing a genuinely thick high-
+// resolution frame to be measured in full.  No filename, image size, cut
+// count, fixed trim, padding or resize participates.
+const __v907IndicesV1080=ordered.map((r,i)=>r&&r.__opencvV491FinalPopulationOwnerV907?i:-1).filter(i=>i>=0);
+const __v907PairAgreesV1080=(a,b)=>{
+  const lo=Math.min(a,b),hi=Math.max(a,b);
+  return lo>=1&&hi-lo<=Math.max(2,Math.round(lo*.35));
+};
+const __v907OriginalPopulationProvenV1080=__v907IndicesV1080.length>0&&
+  __v907IndicesV1080.every(i=>{
+    const r=ordered[i],q=__rawFrameContractsV554[i],si=r&&r.__sourceFrameInsetsV489||{};
+    if(!(q&&q.applied&&q.reason==='four-source-frame-lines-proven'&&q.outer&&q.inner&&q.sides))return false;
+    const t=Object.fromEntries(['L','R','T','B'].map(s=>[s,Number(q.sides[s]&&q.sides[s].thickness)]));
+    return ['L','R','T','B'].every(s=>Number.isFinite(t[s])&&t[s]>=Math.max(1,Math.round(Number(si[s])||0)))&&
+      __v907PairAgreesV1080(t.L,t.R)&&__v907PairAgreesV1080(t.T,t.B);
+  });
+if(__v907IndicesV1080.length){
+  for(const i of __v907IndicesV1080){
+    if(__v907OriginalPopulationProvenV1080){
+      const q=__rawFrameContractsV554[i];
+      q.version='v1080-v907-original-source-frame-contract';
+      q.reason='four-source-frame-lines-proven';
+      q.v907OriginalThicknessOwnerV1080=true;
+      q.v491PopulationEvidenceV1080=true;
+      q.padding=false;q.resize=false;
+    }else{
+      const fallback=__v907StoredV491FrameContractV1080(ordered[i]);
+      if(fallback)__rawFrameContractsV554[i]=fallback;
+    }
+  }
+}
+window.__V907_ORIGINAL_THICKNESS_OWNER_V1080__={
+  applied:__v907OriginalPopulationProvenV1080,
+  reason:!__v907IndicesV1080.length?'v907-population-not-present':
+    (__v907OriginalPopulationProvenV1080?'balanced-original-source-frame-population':'original-source-frame-population-unbalanced-v491-preserved'),
+  population:__v907IndicesV1080.length,
+  contracts:__v907IndicesV1080.map(i=>({index:i+1,contract:__rawFrameContractsV554[i]})),
+  padding:false,resize:false
+};
 // V978: keep measurement ownership by source object identity.  A WeakMap
 // survives reading-order sorts without adding a large enumerable diagnostic
 // object to every rectangle.
