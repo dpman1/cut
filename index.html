@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Frame CUT | 콘티·스토리보드 자동 분할 도구</title>
-<meta name="description" content="콘티, 스토리보드 자동 분할 도구">
+<title>Frame CUT (Storyboard Cutter) | 콘티·스토리보드 자동 분할 도구</title>
+<meta name="description" content="콘티, 스토리보드 시트 이미지에서 프레임을 검출해 컷별로 자동 분할합니다.">
 <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
 <link rel="canonical" href="https://cut.entercredit.kr/">
 <link rel="icon" href="/favicon.ico" sizes="any">
@@ -30,8 +30,9 @@
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "name": "Frame CUT",
+  "alternateName": "Storyboard Cutter",
   "url": "https://cut.entercredit.kr/",
-  "description": "콘티, 스토리보드 자동 분할 도구",
+  "description": "콘티, 스토리보드 시트 이미지에서 프레임을 검출해 컷별로 자동 분할합니다.",
   "applicationCategory": "MultimediaApplication",
   "operatingSystem": "Web"
 }
@@ -20096,16 +20097,41 @@ const __opencvRepeatedCommonFrameV947=(()=>{
   if(__rawFrameContractsV554.length!==ordered.length||
     ordered.some(r=>!r||r.__virtualOccupiedCellV668||r.__virtualOpenCvImageBoundsV670))
     return {...out,reason:'mixed-or-non-v831-cell'};
+  // V1083: V1059 keeps proven sheet-background intersections as logical
+  // matrix slots until the common occupancy stage. They are not physical
+  // frame candidates and therefore cannot participate in V947's four-side
+  // source-frame population. Keep index identity so the accepted contracts
+  // are written back only to the occupied cells; background slots retain
+  // their V831 no-frame coordinates and are removed by the existing owner.
+  const physicalIndices=ordered.map((r,i)=>
+    r&&!r.__sheetBackgroundSlotV1059?i:-1).filter(i=>i>=0);
+  if(physicalIndices.length<4)
+    return {...out,reason:'occupied-frame-population-too-small',
+      physicalCount:physicalIndices.length};
   const evidenceComplete=__opencvRepeatedFrameEvidenceV947.length===ordered.length&&
-    __opencvRepeatedFrameEvidenceV947.every(Boolean);
-  const raw=evidenceComplete?__opencvRepeatedFrameEvidenceV947:__rawFrameContractsV554;
+    physicalIndices.every(i=>!!__opencvRepeatedFrameEvidenceV947[i]);
+  const raw=evidenceComplete
+    ?physicalIndices.map(i=>__opencvRepeatedFrameEvidenceV947[i])
+    :physicalIndices.map(i=>__rawFrameContractsV554[i]);
   if(raw.some(q=>!q||!q.applied||q.reason!=='four-source-frame-lines-proven'||!q.outer||!q.sides))
     return {...out,reason:'source-four-side-measurement-incomplete'};
   const mode=a=>{const m=new Map();a.filter(Number.isFinite).map(Math.round).forEach(v=>m.set(v,(m.get(v)||0)+1));return [...m].sort((x,y)=>y[1]-x[1]||x[0]-y[0])[0]||null;};
-  const names=['L','R','T','B'],mw=mode(raw.map(q=>+q.outer.w)),mh=mode(raw.map(q=>+q.outer.h));
-  if(!mw||!mh||mw[1]!==ordered.length||mh[1]!==ordered.length)
-    return {...out,reason:'source-outer-size-not-unanimous',outerVote:{w:mw,h:mh}};
-  const thickness={},support={},minSupport=Math.max(2,Math.ceil(ordered.length*.35));
+  const names=['L','R','T','B'],outerWidths=raw.map(q=>Math.round(+q.outer.w)),
+    outerHeights=raw.map(q=>Math.round(+q.outer.h)),mw=mode(outerWidths),mh=mode(outerHeights);
+  const hasBackgroundSlots=physicalIndices.length!==ordered.length;
+  const outerSizeOwned=!!(mw&&mh&&(
+    (mw[1]===physicalIndices.length&&mh[1]===physicalIndices.length)||
+    (hasBackgroundSlots&&mw[1]>physicalIndices.length*.50&&
+      mh[1]>physicalIndices.length*.50&&
+      Math.max(...outerWidths)-Math.min(...outerWidths)<=1&&
+      Math.max(...outerHeights)-Math.min(...outerHeights)<=1)
+  ));
+  if(!outerSizeOwned)
+    return {...out,reason:'source-outer-size-not-unanimous-or-one-raster-clustered',
+      outerVote:{w:mw,h:mh},outerSpread:{
+        w:Math.max(...outerWidths)-Math.min(...outerWidths),
+        h:Math.max(...outerHeights)-Math.min(...outerHeights)}};
+  const thickness={},support={},minSupport=Math.max(2,Math.ceil(physicalIndices.length*.35));
   for(const s of names){
     const v=mode(raw.map(q=>q.sides[s]&&+q.sides[s].thickness));
     if(!v||v[1]<minSupport)return {...out,reason:'repeated-thin-side-support-insufficient',side:s,vote:v,minSupport};
@@ -20116,19 +20142,20 @@ const __opencvRepeatedCommonFrameV947=(()=>{
     return {...out,reason:'not-one-common-thin-frame',thickness,support};
   const cleanFour=raw.filter(q=>names.every(s=>q.sides[s]&&Math.abs(Math.round(+q.sides[s].thickness)-thickness[s])<=1)).length;
   const supportedSides=raw.reduce((n,q)=>n+names.filter(s=>q.sides[s]&&Math.abs(Math.round(+q.sides[s].thickness)-thickness[s])<=1).length,0);
-  const sideRatio=supportedSides/Math.max(1,ordered.length*4);
-  if(cleanFour<Math.max(2,Math.ceil(ordered.length*.20))||sideRatio<.35)
+  const sideRatio=supportedSides/Math.max(1,physicalIndices.length*4);
+  if(cleanFour<Math.max(2,Math.ceil(physicalIndices.length*.20))||sideRatio<.35)
     return {...out,reason:'common-frame-pixel-support-insufficient',cleanFour,sideRatio,thickness,support};
   const target={w:mw[0]-thickness.L-thickness.R,h:mh[0]-thickness.T-thickness.B};
   if(target.w<20||target.h<20)return {...out,reason:'reconstructed-inner-too-small',target};
   const candidates=raw.map((q,i)=>{
+    const orderedIndex=physicalIndices[i];
     const o=q.outer,outer={x:Math.round(+o.x),y:Math.round(+o.y),w:mw[0],h:mh[0]};
-    return {index:i+1,outer,inner:{x:outer.x+thickness.L,y:outer.y+thickness.T,w:target.w,h:target.h}};
+    return {index:orderedIndex+1,orderedIndex,outer,inner:{x:outer.x+thickness.L,y:outer.y+thickness.T,w:target.w,h:target.h}};
   });
   if(candidates.some(c=>c.inner.x<0||c.inner.y<0||c.inner.x+c.inner.w>sourceImage.width||c.inner.y+c.inner.h>sourceImage.height))
     return {...out,reason:'reconstructed-inner-out-of-source',target};
-  candidates.forEach((c,i)=>{
-    const q=__frameContractsV554[i],r=ordered[i];
+  candidates.forEach(c=>{
+    const i=c.orderedIndex,q=__frameContractsV554[i],r=ordered[i];
     q.applied=true;q.reason='opencv-repeated-common-source-frame-canonical-v947';
     q.outer={...c.outer};q.inner={...c.inner};
     q.sides={
@@ -20140,7 +20167,7 @@ const __opencvRepeatedCommonFrameV947=(()=>{
     q.opencvRepeatedCommonFrameV947=true;q.padding=false;q.resize=false;
     r.__opencvRepeatedCommonFrameV947=true;
   });
-  return {...out,applied:true,reason:'unanimous-outer-plus-repeated-thin-frame',outer:{w:mw[0],h:mh[0]},thickness,support,cleanFour,sideRatio,target,candidates};
+  return {...out,applied:true,reason:'unanimous-occupied-outer-plus-repeated-thin-frame',physicalCount:physicalIndices.length,backgroundCount:ordered.length-physicalIndices.length,outer:{w:mw[0],h:mh[0]},thickness,support,cleanFour,sideRatio,target,candidates};
 })();
 window.__OPENCV_REPEATED_COMMON_FRAME_V947__=__opencvRepeatedCommonFrameV947;
 
@@ -20296,12 +20323,25 @@ const __repeatedFrameMajorityContractV888=(()=>{
   const rawWidths=cols.map(q=>q.R-q.L+1),rawHeights=rows.map(q=>q.B-q.T+1);
   const widthVote=mode(rawWidths),heightVote=mode(rawHeights);
   const spreadW=Math.max(...rawWidths)-Math.min(...rawWidths),spreadH=Math.max(...rawHeights)-Math.min(...rawHeights);
+  const axisSpread=(groups,side)=>Math.max(0,...groups.map(g=>{
+    const v=g.map(z=>raw[z.i].sides&&raw[z.i].sides[side]&&+raw[z.i].sides[side].inner).filter(Number.isFinite);
+    return v.length?Math.max(...v)-Math.min(...v):Infinity;
+  }));
+  const rowPhaseSpread=Math.max(axisSpread(rowGroups,'T'),axisSpread(rowGroups,'B'));
+  const colPhaseSpread=Math.max(axisSpread(colGroups,'L'),axisSpread(colGroups,'R'));
   const axesComplete=rowGroups.length>=2&&colGroups.length>=2&&![...rows,...cols].some(q=>Object.values(q).some(v=>!Number.isFinite(v)));
-  const axesStable=axesComplete&&widthVote&&heightVote&&spreadW<=Math.max(2,Math.round(widthVote[0]*.015))&&spreadH<=Math.max(2,Math.round(heightVote[0]*.015));
+  const axesStable=axesComplete&&widthVote&&heightVote&&
+    rowPhaseSpread<=outerTol&&colPhaseSpread<=outerTol&&
+    spreadW<=Math.max(2,Math.round(widthVote[0]*.015))&&spreadH<=Math.max(2,Math.round(heightVote[0]*.015));
   // If the absolute axes are not one stable geometry, preserve V888's proven
   // legacy result.  The new contract is an ownership upgrade, not a new veto
   // that may expose an older fallback crop.
-  const target=axesStable?{w:widthVote[0]-2,h:heightVote[0]-2}:{w:mw[0]-th.L-th.R,h:mh[0]-th.T-th.B};
+  // V1084: measured inner axes already exclude both physical frame sides.
+  // Subtracting another raster pair here double-cropped aligned evidence.
+  // Random layouts cannot borrow an absolute row/column phase: when peers
+  // drift beyond the accepted source-raster tolerance, retain each cell's
+  // measured outer origin and apply only the repeated thin-frame thickness.
+  const target=axesStable?{w:widthVote[0],h:heightVote[0]}:{w:mw[0]-th.L-th.R,h:mh[0]-th.T-th.B};
   if(target.w<20||target.h<20)return {...out,reason:'reconstructed-inner-too-small',target};
   const candidates=outers.map((o,i)=>{
     const outer={x:Math.round(+o.x),y:Math.round(+o.y),w:mw[0],h:mh[0]};
@@ -20332,7 +20372,7 @@ const __repeatedFrameMajorityContractV888=(()=>{
     q.repeatedFrameMajorityCanonicalV888=true;q.padding=false;q.resize=false;
     r.__repeatedFrameMajorityCanonicalV888=true;
   });
-  return {...out,applied:true,reason:axesStable?'four-side-majority-plus-stable-absolute-inner-axes':'four-side-majority-plus-one-raster-outer-geometry-fallback',outer:{w:mw[0],h:mh[0]},thickness:th,support,cleanFour,target,rows,cols,rawWidths,rawHeights,spreadW,spreadH,axesStable,candidates};
+  return {...out,applied:true,reason:axesStable?'four-side-majority-plus-stable-absolute-inner-axes':'four-side-majority-plus-one-raster-outer-geometry-fallback',outer:{w:mw[0],h:mh[0]},thickness:th,support,cleanFour,target,rows,cols,rawWidths,rawHeights,spreadW,spreadH,rowPhaseSpread,colPhaseSpread,axesStable,candidates};
 })();
 window.__REPEATED_FRAME_MAJORITY_CONTRACT_V888__=__repeatedFrameMajorityContractV888;
 
@@ -20407,7 +20447,11 @@ const __completeMatrixMeasuredAxesV1012=(()=>{
     // scans regain per-cell coordinate ownership on an otherwise complete
     // frame matrix.
     const sm=q&&(q.sourceMeasurement||q),s=sm&&sm.sides;
-    return {i,r:ordered[i],q,sm,s,valid:!!(sm&&sm.reason==='four-source-frame-lines-proven'&&
+    const sourceFourSideReason=!!(sm&&(
+      sm.reason==='four-source-frame-lines-proven'||
+      (sm.reason==='restored-lattice-four-source-frame-proven-v697'&&
+       q&&q.reason==='source-lattice-cell-phase-pattern-thickness-v846')));
+    return {i,r:ordered[i],q,sm,s,valid:!!(sourceFourSideReason&&
       s&&names.every(k=>s[k]&&Number.isFinite(+s[k].inner)&&
         Number.isFinite(+s[k].outer)&&Number.isFinite(+s[k].thickness)))};
   });
