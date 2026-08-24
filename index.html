@@ -1,4 +1,54 @@
 <!DOCTYPE html>
+<!-- V1108: Topology-owned pencil frames are measured as one physical edge
+     band on the untouched result: outer shoulder, graphite core and inner
+     shoulder terminate at one evidence-derived endpoint. Weak removes the
+     first proven layer, Medium 2/3 of the proven depth, and Strong the full
+     depth. No fixed 2/3px allowance, exposed-edge rescan, synthetic frame
+     thickness, coordinate change, padding or resize is introduced. -->
+<!-- V1107: Exact pale/explicit pencil-grid cells own physical frame-side
+     topology even when their crop coordinate intentionally bypasses the V554
+     thickness contract. Publish that existing topology only to V1106's
+     one-raster residual proof. Do not synthesize crop coordinates or thickness,
+     and do not expose it to coordinate reconciliation, wedge depth, restoration
+     or any other residual class. This connects the previously unreachable
+     proof without changing engine selection, base crop, padding or resize. -->
+<!-- V1106: A one-raster graphite frame veil may be globally distributed but
+     locally interrupted by artwork crossing the physical frame. Variance and
+     longest-run continuity are therefore not identity tests for this class.
+     Weak/Medium/Strong share one proof: the exact crop-time physical side,
+     broad per-segment edge coverage, a same-direction transition in nearly
+     every segment, and immediate two-row termination. The untouched result is
+     read once per eligible cut and all accepted sides join the existing single
+     simultaneous crop. No threshold relaxation, rescan, padding or resize. -->
+<!-- V1105: Medium and Strong share one deskewed-edge geometry proof and
+     differ only in how much of the proven residual depth D they apply.
+     Medium applies round(2D/3); Strong applies D. The ratio is resolution- and
+     frame-thickness-independent, and both remain a single crop from the
+     untouched result. Weak, non-deskew paths, occupancy, engine routing,
+     padding, resizing and Strong's V1104 result are unchanged. -->
+<!-- V1104: Strong deskew cleanup recognizes the missing geometric class:
+     a shallow frame band which intersects only one end of the rectified crop,
+     contracts monotonically over a few rows/columns, and terminates inside
+     the measured physical-side thickness. The proof requires that exact side
+     in the crop-time frame contract, reads the untouched result once, and is
+     merged into the existing single simultaneous crop. Weak/Medium, engine
+     routing, occupancy, padding, resizing and exposed-edge rescans are unchanged. -->
+<!-- V1103: Deskew is a coordinate transform, not a new occupancy source.
+     Empty-cut background stays owned by the untouched image, deskewed rasters
+     use connected-stroke occupancy, compact output indices are mapped back to
+     detector indices, and the exact crop-time frame contract is carried into
+     the final residual pass. Projected frame fallbacks use an inscribed inner
+     rectangle instead of an enclosing AABB. Medium reconciles only a 1-2px
+     AA shoulder; Strong may reconcile the measured physical frame thickness.
+     All sides are decided on the untouched cut and applied in one crop. -->
+<!-- V1102: Residual strength has three non-overlapping jobs. Weak preserves
+     the established continuous neutral-line contract. Medium additionally
+     removes one source-frame-owned chromatic AA veil whose picture pattern is
+     preserved across the edge and terminates immediately. Strong inherits
+     Medium and may remove a fragmented/skewed pencil-frame ridge proved in 2-D
+     on the untouched result, but only on a side already owned by the source
+     frame contract. No repeated exposed-edge classification, padding, resize,
+     engine routing, occupancy or base crop coordinate is changed. -->
 <!-- V1101: Separate occupancy from physical-frame coordinate ownership.
      OpenCV keeps the occupied-cut population; a larger direct V491 frame
      population may own only the distinct source frames matched to those cuts.
@@ -16269,14 +16319,18 @@ const __opencvV549BoundaryArbitrationV881=await (async()=>{
         const pts=[
           [r.x,r.y],[r.x+r.w,r.y],[r.x,r.y+r.h],[r.x+r.w,r.y+r.h]
         ].map(([x,y])=>({x:tr.a*x+tr.c*y+tr.tx,y:tr.b*x+tr.d*y+tr.ty}));
-        const x0=Math.ceil(Math.min(...pts.map(p=>p.x)));
-        const y0=Math.ceil(Math.min(...pts.map(p=>p.y)));
-        const x1=Math.floor(Math.max(...pts.map(p=>p.x)));
-        const y1=Math.floor(Math.max(...pts.map(p=>p.y)));
+        // V1103: an enclosing AABB is only a correspondence window. Under
+        // shear it contains pixels outside the transformed inner frame. Use
+        // the axis-aligned rectangle inscribed between the four frame sides.
+        const x0=Math.ceil(Math.max(pts[0].x,pts[2].x));
+        const y0=Math.ceil(Math.max(pts[0].y,pts[1].y));
+        const x1=Math.floor(Math.min(pts[1].x,pts[3].x));
+        const y1=Math.floor(Math.min(pts[2].y,pts[3].y));
         return {...r,x:x0,y:y0,w:Math.max(1,x1-x0),h:Math.max(1,y1-y0),cx:(x0+x1)/2,cy:(y0+y1)/2,
           __v882OriginalBoundary:{x:r.x,y:r.y,w:r.w,h:r.h},
           __v882ProjectedArea:r.w*r.h*Math.abs(tr.a*tr.d-tr.b*tr.c),
-          __v882SourceToRectified:{...tr}};
+          __v882SourceToRectified:{...tr},
+          __v1103ProjectionContract:'maximal-axis-aligned-inscribed-inner-rect'};
       };
       const projected=explicit.rects.map(r=>projectRectV882(r));
       // The full-grid detector may conservatively reject the rectified probe
@@ -18241,6 +18295,154 @@ async function __v322RepresentativeNormalizeAndErase(cropMode, baseName){
       innerMean:+innerMean.toFixed(1),contrast:+contrast.toFixed(1),gate,fragmentedGate,decisiveDark,graphiteCore,paleAA,fragmentedGraphite};
   }
 
+  // V1106: pencil artwork can cross and occlude a pale frame, splitting one
+  // physical raster into many short runs and making whole-row variance huge.
+  // Prove the frame by distributed behaviour instead: almost every segment
+  // contains the edge veil, moves inward in the same brightness direction,
+  // and reaches its endpoint immediately. The caller separately requires the
+  // exact physical-side contract, so this evidence can safely belong to Weak.
+  function occludedGraphiteFrameVeilV1106(cn,side,pixels){
+    const out={version:'v1106-occluded-graphite-frame-veil',accepted:false,
+      reason:'not-qualified',side,depth:0,padding:false,resize:false,rescan:false};
+    const w=cn.width,h=cn.height,horizontal=side==='T'||side==='B';
+    const len=horizontal?w:h,deep=horizontal?h:w;
+    if(len<80||deep<4){out.reason='geometry-too-small';return out;}
+    if(!pixels||pixels.length!==w*h*4){out.reason='untouched-pixels-unavailable';return out;}
+    const p0=Math.floor(len*.04),p1=Math.max(p0+1,Math.floor(len*.96)),segments=18;
+    const rgb=(p,off)=>{
+      let x,y;
+      if(side==='T'){x=p;y=off;}
+      else if(side==='B'){x=p;y=h-1-off;}
+      else if(side==='L'){x=off;y=p;}
+      else{x=w-1-off;y=p;}
+      const i=(y*w+x)*4;return [pixels[i],pixels[i+1],pixels[i+2]];
+    };
+    let usable=0,coverageGood=0,directionGood=0,endpointGood=0,jointGood=0;
+    let edgeN=0,edgeInk=0,edgeSum=0,jumpSum=0,chromaSum=0;
+    const rows=[];
+    for(let s=0;s<segments;s++){
+      const a=Math.floor(p0+(p1-p0)*s/segments),b=Math.floor(p0+(p1-p0)*(s+1)/segments);
+      if(b<=a+1)continue;
+      let n=0,e=0,n1=0,n2=0,ink=0,chroma=0;
+      for(let p=a;p<b;p++){
+        const q0=rgb(p,0),q1=rgb(p,1),q2=rgb(p,2);
+        const g0=(q0[0]+q0[1]+q0[2])/3,g1=(q1[0]+q1[1]+q1[2])/3,g2=(q2[0]+q2[1]+q2[2])/3;
+        e+=g0;n1+=g1;n2+=g2;n++;if(g0<238)ink++;
+        chroma+=Math.max(...q0)-Math.min(...q0);
+      }
+      if(n<2)continue;
+      e/=n;n1/=n;n2/=n;const coverage=ink/n,jump=n1-e,next=Math.abs(n2-n1),endpointLimit=Math.max(12,jump*.75);
+      const covOk=coverage>=.60,dirOk=jump>=8,endOk=next<=endpointLimit;
+      usable++;if(covOk)coverageGood++;if(dirOk)directionGood++;if(endOk)endpointGood++;
+      if(covOk&&dirOk&&endOk)jointGood++;
+      edgeN+=n;edgeInk+=ink;edgeSum+=e*n;jumpSum+=jump;chromaSum+=chroma;
+      rows.push({segment:s,edge:+e.toFixed(1),next:+n1.toFixed(1),after:+n2.toFixed(1),
+        coverage:+coverage.toFixed(3),jump:+jump.toFixed(1),endpoint:+next.toFixed(1),
+        endpointLimit:+endpointLimit.toFixed(1),covOk,dirOk,endOk});
+    }
+    const den=Math.max(1,usable),edgeDen=Math.max(1,edgeN);
+    const edgeCoverage=edgeInk/edgeDen,coverageRatio=coverageGood/den,
+      directionRatio=directionGood/den,endpointRatio=endpointGood/den,jointRatio=jointGood/den;
+    const edgeMean=edgeSum/edgeDen,averageJump=jumpSum/den,chroma=chromaSum/edgeDen;
+    const accepted=usable>=14&&edgeMean>=90&&edgeMean<=235&&edgeCoverage>=.72&&
+      coverageRatio>=.83&&directionRatio>=.83&&jointRatio>=.72&&
+      averageJump>=18&&chroma<=12;
+    return {...out,accepted,reason:accepted
+      ?'physical-side-distributed-graphite-veil-terminates-in-one-raster-v1106'
+      :'distributed-graphite-veil-contract-not-proven',depth:accepted?1:0,
+      usable,edgeMean:+edgeMean.toFixed(1),edgeCoverage:+edgeCoverage.toFixed(3),
+      coverageRatio:+coverageRatio.toFixed(3),directionRatio:+directionRatio.toFixed(3),
+      endpointRatio:+endpointRatio.toFixed(3),jointRatio:+jointRatio.toFixed(3),
+      averageJump:+averageJump.toFixed(1),chroma:+chroma.toFixed(1),segments:rows};
+  }
+
+  // V1108: V1106 proved only the first raster and therefore returned depth=1
+  // at every strength.  Pencil scans can contain one physical frame as an
+  // outer AA shoulder + graphite core + inner shoulder, and the darkest core
+  // may be one raster inward.  Measure that complete band on the untouched
+  // pixels.  This proof is deliberately limited to the topology-only pencil
+  // owner introduced by V1107; ordinary V554 contracts keep their measured
+  // coordinate/thickness paths.  The endpoint, rather than a px constant,
+  // owns the depth.
+  function occludedGraphiteFrameBandV1108(cn,side,pixels,sideOwner){
+    const out={version:'v1108-pencil-physical-band-depth',accepted:false,
+      reason:'not-qualified',side,depth:0,padding:false,resize:false,rescan:false};
+    if(!sideOwner||sideOwner.coordinateOwner!==false||sideOwner.thicknessOwner!==false){
+      out.reason='not-topology-only-pencil-side-owner';return out;
+    }
+    const w=cn.width,h=cn.height,horizontal=side==='T'||side==='B';
+    const len=horizontal?w:h,deep=horizontal?h:w;
+    if(len<80||deep<7){out.reason='geometry-too-small';return out;}
+    if(!pixels||pixels.length!==w*h*4){out.reason='untouched-pixels-unavailable';return out;}
+    const cap=Math.max(4,Math.min(8,Math.ceil(Math.min(w,h)*.032)));
+    const p0=Math.floor(len*.04),p1=Math.max(p0+1,Math.floor(len*.96)),segments=18;
+    const rgb=(p,off)=>{
+      let x,y;
+      if(side==='T'){x=p;y=off;}
+      else if(side==='B'){x=p;y=h-1-off;}
+      else if(side==='L'){x=off;y=p;}
+      else{x=w-1-off;y=p;}
+      const i=(y*w+x)*4;return [pixels[i],pixels[i+1],pixels[i+2]];
+    };
+    const profiles=[];
+    for(let d=0;d<=cap+1;d++){
+      let n=0,sum=0,ink238=0,ink220=0,chroma=0,distributed=0,coreDistributed=0,usable=0;
+      for(let s=0;s<segments;s++){
+        const a=Math.floor(p0+(p1-p0)*s/segments),b=Math.floor(p0+(p1-p0)*(s+1)/segments);
+        if(b<=a+1)continue;
+        let sn=0,s238=0,s220=0;
+        for(let p=a;p<b;p++){
+          const q=rgb(p,d),g=(q[0]+q[1]+q[2])/3;
+          n++;sn++;sum+=g;if(g<238){ink238++;s238++;}if(g<220){ink220++;s220++;}
+          chroma+=Math.max(...q)-Math.min(...q);
+        }
+        usable++;if(s238/sn>=.50)distributed++;if(s220/sn>=.40)coreDistributed++;
+      }
+      const den=Math.max(1,n),sden=Math.max(1,usable);
+      profiles.push({depth:d,mean:sum/den,coverage:ink238/den,coreCoverage:ink220/den,
+        distributedRatio:distributed/sden,coreDistributedRatio:coreDistributed/sden,
+        chroma:chroma/den});
+    }
+    let ridge=-1;
+    for(let d=0;d<=cap-1;d++){
+      const q=profiles[d];
+      if(q.mean<=205&&q.coreCoverage>=.62&&q.distributedRatio>=.72&&
+         q.coreDistributedRatio>=.61&&q.chroma<=12&&
+         (ridge<0||q.coreCoverage>profiles[ridge].coreCoverage))ridge=d;
+    }
+    if(ridge<0){out.reason='distributed-graphite-core-not-proven';return {...out,cap,profiles};}
+    for(let d=0;d<=ridge;d++){
+      const q=profiles[d];
+      if(q.coverage<.62||q.distributedRatio<.61){
+        out.reason='graphite-core-not-connected-to-outer-edge';return {...out,cap,ridge,profiles};
+      }
+    }
+    const core=profiles[ridge];let endpoint=-1,endpointKind='none';
+    for(let d=ridge+1;d<=cap;d++){
+      const q=profiles[d],next=profiles[d+1];
+      const clean=q.coverage<=.45&&q.coreCoverage<=.32&&
+        next.coverage<=.50&&next.coreCoverage<=.36;
+      const relative=q.mean>=core.mean+18&&q.coreCoverage<=core.coreCoverage-.22&&
+        next.mean>=core.mean+18&&next.coreCoverage<=core.coreCoverage-.22;
+      // With the core on the outer raster, an immediately adjacent graphite
+      // shoulder is still part of the frame.  When the core is inward, the
+      // same relative release is the physical inner endpoint.
+      const outerShoulder=ridge===0&&q.coverage>.50&&q.coreCoverage>.36;
+      if(clean||(relative&&!outerShoulder)){
+        endpoint=d;endpointKind=clean?'clean-paper-release':'relative-core-release';break;
+      }
+    }
+    if(endpoint<1){out.reason='physical-band-endpoint-not-proven';return {...out,cap,ridge,profiles};}
+    for(let d=0;d<endpoint;d++){
+      const q=profiles[d];
+      if(q.coverage<.50&&q.coreCoverage<.36){
+        out.reason='band-disconnected-before-endpoint';return {...out,cap,ridge,endpoint,profiles};
+      }
+    }
+    return {...out,accepted:true,reason:'topology-owned-pencil-band-endpoint-proven-v1108',
+      depth:endpoint,cap,ridge,endpoint,endpointKind,profiles};
+  }
+
 
   function topForeheadGrayRimEvidence(cn){
     // V353: 화장품/여자 얼굴 상단 전용 pale rim 보강.
@@ -18482,10 +18684,67 @@ async function __v322RepresentativeNormalizeAndErase(cropMode, baseName){
     return {hit, kind:hit?(side==='bottom'?'bottomPaleEdgeRim':'topPaleEdgeRim'):'none', maskRatio:+maskRatio.toFixed(3), hitRatio:+hitRatio.toFixed(3), strongRatio:+strongRatio.toFixed(3), runRatio:+runRatio.toFixed(3), segRatio:+segRatio.toFixed(3), innerMean:+innerMean.toFixed(1), edgeMean:+edgeMean.toFixed(1), diffMean:+diffMean.toFixed(1), edgePaleRatio:+edgePaleRatio.toFixed(3), edgeMidRatio:+edgeMidRatio.toFixed(3), edgeWhiteRatio:+edgeWhiteRatio.toFixed(3), edgeDarkRatio:+edgeDarkRatio.toFixed(3), longPaleRim, bottomWideRim};
   }
 
+  // V1102 Medium/Strong: a coloured AA residue is not a low-variance gray
+  // line. It is the picture edge attenuated by the physical frame, so its RGB
+  // pattern remains correlated with the next raster while every long segment
+  // moves inward in the same brightness direction. The following raster must
+  // immediately return to the picture trend; this proves a one-raster endpoint
+  // without reclassifying newly exposed content.
+  function chromaticFrameVeilEvidenceV1102(cn,side,level){
+    if(level==='weak')return {accepted:false,reason:'weak-neutral-lines-only'};
+    const w=cn.width,h=cn.height,horizontal=side==='top'||side==='bottom';
+    const len=horizontal?w:h,deep=horizontal?h:w;
+    if(len<80||deep<8)return {accepted:false,reason:'too-small'};
+    const d=cn.getContext('2d').getImageData(0,0,w,h).data;
+    const p0=Math.floor(len*.07),p1=Math.max(p0+1,Math.floor(len*.93)),segments=18;
+    const rgb=(p,off)=>{
+      let x,y;
+      if(side==='top'){x=p;y=off;}
+      else if(side==='bottom'){x=p;y=h-1-off;}
+      else if(side==='left'){x=off;y=p;}
+      else{x=w-1-off;y=p;}
+      const i=(y*w+x)*4;return [d[i],d[i+1],d[i+2]];
+    };
+    let n=0,sx=0,sy=0,sxx=0,syy=0,sxy=0,edgeJump=0,nextJump=0,chromaSum=0,chromaN=0;
+    const segmentDiffs=[];
+    for(let s=0;s<segments;s++){
+      const a=Math.floor(p0+(p1-p0)*s/segments),b=Math.floor(p0+(p1-p0)*(s+1)/segments);
+      if(b<=a+1)continue;
+      let de=0,dn=0,sn=0;
+      for(let p=a;p<b;p++){
+        const e=rgb(p,0),i1=rgb(p,1),i2=rgb(p,2);
+        chromaSum+=Math.max(...e)-Math.min(...e)+Math.max(...i1)-Math.min(...i1);chromaN+=2;
+        for(let c=0;c<3;c++){
+          const x=e[c],y=i1[c];sx+=x;sy+=y;sxx+=x*x;syy+=y*y;sxy+=x*y;n++;
+          de+=y-x;dn+=Math.abs(i2[c]-y);sn++;
+        }
+      }
+      const diff=de/Math.max(1,sn);segmentDiffs.push(diff);
+      edgeJump+=diff;nextJump+=dn/Math.max(1,sn);
+    }
+    const segN=Math.max(1,segmentDiffs.length);
+    edgeJump/=segN;nextJump/=segN;
+    const cov=n*sxy-sx*sy,den=Math.sqrt(Math.max(0,n*sxx-sx*sx)*Math.max(0,n*syy-sy*sy));
+    const correlation=den>0?cov/den:0;
+    const chroma=chromaSum/Math.max(1,chromaN);
+    const positiveRatio=segmentDiffs.filter(v=>v>=4).length/segN;
+    const gate=level==='strong'
+      ?{correlation:.68,positive:.72,jump:4,endpointRatio:.48,endpointAbs:12,chroma:12}
+      :{correlation:.80,positive:.83,jump:6,endpointRatio:.38,endpointAbs:10,chroma:16};
+    const endpointLimit=Math.max(gate.endpointAbs,edgeJump*gate.endpointRatio);
+    const accepted=correlation>=gate.correlation&&positiveRatio>=gate.positive&&
+      edgeJump>=gate.jump&&nextJump<=endpointLimit&&chroma>=gate.chroma;
+    return {accepted,reason:accepted?'source-frame-chromatic-aa-veil-v1102':'chromatic-pattern-or-endpoint-not-proven',
+      depth:accepted?1:0,correlation:+correlation.toFixed(3),positiveRatio:+positiveRatio.toFixed(3),
+      edgeJump:+edgeJump.toFixed(2),nextJump:+nextJump.toFixed(2),endpointLimit:+endpointLimit.toFixed(2),chroma:+chroma.toFixed(2),
+      segmentDiffs:segmentDiffs.map(v=>+v.toFixed(1)),gate};
+  }
+
   function evalTrimSide(cn,side,opts){
     opts=opts||{};
     const level=opts.levelOverride||(typeof __residualLevel!=='undefined'?__residualLevel:'weak');
     const unified=unifiedFinalResidualEvidenceV662(cn,side,level);
+    const chromaticVeil=chromaticFrameVeilEvidenceV1102(cn,side,level);
     if(side==='top'||side==='bottom'){
       const structural=horizontalStructuralHairlineEvidence(cn,side);
       const strong=strongUniformEvidence(cn,side);
@@ -18505,6 +18764,9 @@ async function __v322RepresentativeNormalizeAndErase(cropMode, baseName){
       else if(strong.hit && structural.signRatio>=0.60){ hit=true; kind='weakStrongUniform'; }
       else if(!opts.sizeLocked && structural.hit && oldHit){ hit=true; kind='weak_'+structural.kind; }
       else if(!opts.sizeLocked && structural.strong){ hit=true; kind='weakStructOnlyStrong'; }
+      // Medium: source-frame-owned one-raster chromatic AA veil. Final
+      // application is still gated by the immutable side contract in scanSide.
+      else if(allowMedium && chromaticVeil.accepted){hit=true;kind='medium-chromaticFrameVeilV1102';}
       // 중: 화장품/이마 상단 pale rim 보강.
       else if(allowMedium && side==='top' && forehead.hit){ hit=true; kind='medium_'+forehead.kind; }
       // 강: 남자 얼굴 하단/일반 pale edge rim까지 허용.
@@ -18516,13 +18778,13 @@ async function __v322RepresentativeNormalizeAndErase(cropMode, baseName){
         hit=true; kind='strong_bottomPaleEdgeRimLockedSafe';
       }
       else if(allowStrong && !opts.sizeLocked && paleEdge.hit){ hit=true; kind='strong_'+paleEdge.kind; }
-      return {hit, kind, unified, structural, paired, strong, oldHit, forehead, paleEdge, bottomBand};
+      return {hit, kind, unified, chromaticVeil, structural, paired, strong, oldHit, forehead, paleEdge, bottomBand};
     }
     // V651: 좌우도 상하와 동일한 최종 옵션의 대상이다. 강한 균일선 증거는
     // 유지하되 호출부에서 임의로 noVertical을 주어 무조건 차단하지 않는다.
     const strong=strongUniformEvidence(cn,side),paired=pairedBoundaryEvidenceV653(cn,side,level);
-    const hit=!opts.noVertical&&(unified.hit||strong.hit||paired.hit);
-    return {hit,kind:unified.hit?unified.kind:(paired.hit?'v653_pairedBoundary':(strong.hit?'verticalStrongUniform':'none')),unified,paired,strong,oldHit:shouldGrayResidualTrimSide(cn,side)};
+    const hit=!opts.noVertical&&(unified.hit||strong.hit||paired.hit||chromaticVeil.accepted);
+    return {hit,kind:unified.hit?unified.kind:(paired.hit?'v653_pairedBoundary':(strong.hit?'verticalStrongUniform':(chromaticVeil.accepted?'medium-chromaticFrameVeilV1102':'none'))),unified,chromaticVeil,paired,strong,oldHit:shouldGrayResidualTrimSide(cn,side)};
   }
 
   function sourceBoundaryProofV1094(rect,side,depth,level='weak'){
@@ -18651,9 +18913,16 @@ async function __v322RepresentativeNormalizeAndErase(cropMode, baseName){
       for(let p=a;p<b;p+=2){if(gray(p,d)<=Math.min(180,localBright-10))occupancyHits++;occupancyN++;}
       const lineOccupancy=occupancyHits/Math.max(1,occupancyN);
       rows.push({s,d,end,thickness,line,innerContrast,outerContrast,lineOccupancy,
-        valid:line<=155&&innerContrast>=9&&(d<2||outerContrast>=5)&&thickness<=5});
+        valid:line<=155&&innerContrast>=9&&(d<2||outerContrast>=5)&&thickness<=5,
+        // V1102 broad geometry pool. It is consulted only when the original
+        // strict pool cannot form a ridge; final adoption also requires the
+        // immutable source-frame side contract.
+        sketchValid:line<=190&&innerContrast>=6&&(d<2||outerContrast>=4)&&thickness<=7});
     }
-    const candidates=rows.filter(v=>v.valid);
+    const strictCandidates=rows.filter(v=>v.valid);
+    const sketchCandidates=rows.filter(v=>v.sketchValid);
+    const candidates=strictCandidates.length>=segments*.70?strictCandidates:sketchCandidates;
+    const candidatePoolV1102=candidates===strictCandidates?'v1098-strict':'v1102-pencil';
     if(candidates.length<segments*.70)return {accepted:false,geometryCore:false,reason:'insufficient-2d-coverage',coverage:+(candidates.length/segments).toFixed(3)};
     const thirds=[0,1,2].map(k=>candidates.filter(v=>v.s>=k*segments/3&&v.s<(k+1)*segments/3));
     if(thirds.some(v=>v.length<4))return {accepted:false,geometryCore:false,reason:'ridge-does-not-span-edge'};
@@ -18665,6 +18934,8 @@ async function __v322RepresentativeNormalizeAndErase(cropMode, baseName){
     const coverage=inliers.length/segments;
     const innerGood=inliers.filter(v=>v.innerContrast>=14).length/Math.max(1,inliers.length);
     const outerGood=inliers.filter(v=>v.d<2||v.outerContrast>=9).length/Math.max(1,inliers.length);
+    const innerSketchGood=inliers.filter(v=>v.innerContrast>=8).length/Math.max(1,inliers.length);
+    const outerSketchGood=inliers.filter(v=>v.d<2||v.outerContrast>=6).length/Math.max(1,inliers.length);
     const lineMed=median(inliers.map(v=>v.line)),lineQ80=quantile(inliers.map(v=>v.line),.8);
     const pathMin=Math.min(...inliers.map(v=>v.d)),pathMax=Math.max(...inliers.map(v=>v.d));
     const drift=Math.abs(slope)*(segments-1),thicknessQ80=quantile(inliers.map(v=>v.thickness),.8);
@@ -18695,17 +18966,116 @@ async function __v322RepresentativeNormalizeAndErase(cropMode, baseName){
     const boundaryAttachedCore=coverage>=.92&&innerGood>=.92&&lineMed<=70&&lineQ80<=85&&
       innerContrastMed>=160&&pathMin<=2&&pathMax<=7&&drift<=8&&
       thicknessQ80>=2&&thicknessQ80<=5&&occupancyQ20>=.92;
+    // V1102 Strong pencil ridge: scanned storyboard frames are interrupted by
+    // overshooting sketch strokes and have gray paper on both faces, so V1098's
+    // near-solid black / 160-level bilateral contrast can never describe them.
+    // Publish only a candidate here; adoption below additionally requires the
+    // immutable source frame contract for this exact side.
+    const pencilBoundaryAttached=coverage>=.68&&innerSketchGood>=.72&&
+      lineMed<=175&&lineQ80<=205&&innerContrastMed>=10&&
+      pathMin<=2&&pathMax<=Math.min(9,limit-2)&&drift<=12&&
+      thicknessQ80>=1&&thicknessQ80<=7&&occupancyQ20>=.55;
+    const pencilInsetRidge=coverage>=.72&&innerSketchGood>=.74&&outerSketchGood>=.68&&
+      lineMed<=170&&lineQ80<=200&&innerContrastMed>=10&&outerContrastMed>=8&&
+      pathMin>=1&&pathMax<=limit-2&&drift<=18&&thicknessQ80>=1&&thicknessQ80<=7;
+    const sketchRidgeCandidateV1102=pencilBoundaryAttached||pencilInsetRidge;
     const geometryCore=insetRidgeCore||boundaryAttachedCore;
     const accepted=geometryCore;
     const endExtra=median(inliers.map(v=>v.end-v.d));
     const predictedMax=Math.max(intercept,intercept+slope*(segments-1))+endExtra;
-    const depth=accepted?Math.min(limit,Math.ceil(Math.max(predictedMax,quantile(inliers.map(v=>v.end),.92)))):0;
-    return {accepted,geometryCore,insetRidgeCore,boundaryAttachedCore,reason:accepted?(boundaryAttachedCore?'independent-boundary-attached-frame-ridge-v1099':'independent-bilateral-frame-ridge-v1098'):'independent-edge-proof-rejected',depth,
+    const depth=(accepted||sketchRidgeCandidateV1102)
+      ?Math.min(limit,Math.ceil(Math.max(predictedMax,quantile(inliers.map(v=>v.end),.92)))):0;
+    return {accepted,geometryCore,insetRidgeCore,boundaryAttachedCore,candidatePoolV1102,
+      sketchRidgeCandidateV1102,pencilBoundaryAttached,pencilInsetRidge,
+      reason:accepted?(boundaryAttachedCore?'independent-boundary-attached-frame-ridge-v1099':'independent-bilateral-frame-ridge-v1098'):(sketchRidgeCandidateV1102?'source-contract-required-pencil-ridge-v1102':'independent-edge-proof-rejected'),depth,
       coverage:+coverage.toFixed(3),innerGood:+innerGood.toFixed(3),outerGood:+outerGood.toFixed(3),
+      innerSketchGood:+innerSketchGood.toFixed(3),outerSketchGood:+outerSketchGood.toFixed(3),
       lineMed:+lineMed.toFixed(1),lineQ80:+lineQ80.toFixed(1),pathMin,pathMax,drift:+drift.toFixed(2),
       slope:+slope.toFixed(4),thicknessQ80,innerContrastMed:+innerContrastMed.toFixed(1),
       outerContrastMed:+outerContrastMed.toFixed(1),bilateralRatio:+bilateralRatio.toFixed(3),occupancyQ20:+occupancyQ20.toFixed(3),limit};
   }
+
+  // V1104: after global deskew, a locally imperfect frame can cross the crop
+  // boundary as a short triangular wedge. Whole-side coverage is deliberately
+  // low, so V1098 must reject it; that is not evidence that the pixels are
+  // artwork. Prove this separate geometry only when the same physical side is
+  // already owned by the exact crop-time frame contract.
+  function deskewOwnedEdgeWedgeProofV1105(cn,side,pixels,frameContract){
+    const out={version:'v1105-shared-deskew-owned-edge-wedge-proof',accepted:false,
+      reason:'not-qualified',side,depth:0,padding:false,resize:false,rescan:false};
+    const fs=frameContract&&frameContract.applied&&!frameContract.noFrameCrop&&
+      frameContract.sides&&frameContract.sides[side];
+    const thickness=Number(fs&&fs.thickness);
+    if(!fs||!Number.isFinite(thickness)||thickness<=0){out.reason='no-measured-physical-side';return out;}
+    if(!pixels||pixels.length!==cn.width*cn.height*4){out.reason='untouched-pixels-unavailable';return out;}
+    const horizontal=side==='T'||side==='B',len=horizontal?cn.width:cn.height;
+    const cross=horizontal?cn.height:cn.width;
+    const cap=Math.min(cross-2,Math.max(4,Math.min(12,Math.ceil(thickness*1.8)+2)));
+    if(len<40||cap<2){out.reason='geometry-too-small';return out;}
+    const pixel=(depth,pos)=>{
+      const x=side==='L'?depth:side==='R'?cn.width-1-depth:pos;
+      const y=side==='T'?depth:side==='B'?cn.height-1-depth:pos;
+      const i=(y*cn.width+x)*4;
+      return (pixels[i]+pixels[i+1]+pixels[i+2])/3;
+    };
+    // Measure a dark run attached to either end. Two pale JPEG holes may be
+    // bridged, but the run may never start away from the physical corner.
+    const attachedRun=(depth,fromStart)=>{
+      let last=-1,gap=0,started=false;
+      for(let k=0;k<len;k++){
+        const pos=fromStart?k:len-1-k,dark=pixel(depth,pos)<225;
+        if(dark){started=true;last=k;gap=0;}
+        else if(!started){if(k>=2)break;}
+        else if(++gap>2)break;
+      }
+      return last+1;
+    };
+    const startRuns=[],endRuns=[];
+    for(let d=0;d<=cap+1;d++){
+      startRuns.push(attachedRun(d,true));endRuns.push(attachedRun(d,false));
+    }
+    const fromStart=startRuns[0]>=endRuns[0],runs=fromStart?startRuns:endRuns;
+    const minInitial=Math.max(18,Math.ceil(len*.18));
+    const maxInitial=Math.ceil(len*.82),clean=Math.max(6,Math.ceil(len*.035));
+    if(runs[0]<minInitial){out.reason='edge-attached-run-too-short';return {...out,len,cap,runs,fromStart,minInitial,clean};}
+    if(runs[0]>maxInitial){out.reason='whole-side-band-owned-by-standard-proof';return {...out,len,cap,runs,fromStart,maxInitial,clean};}
+    let endpoint=-1;
+    for(let d=1;d<=cap;d++)if(runs[d]<=clean&&runs[d+1]<=clean){endpoint=d;break;}
+    if(endpoint<1){out.reason='wedge-does-not-terminate-inside-thickness-cap';return {...out,len,cap,runs,fromStart,clean};}
+    const active=runs.slice(0,endpoint),minSecond=Math.max(clean+1,Math.ceil(len*.07));
+    if(active.length<2||active[1]<minSecond){out.reason='single-raster-or-unsupported-wedge';return {...out,len,cap,runs,fromStart,endpoint,minSecond,clean};}
+    const growthTol=Math.max(6,Math.ceil(len*.035));
+    let violations=0,maxGrowth=0;
+    for(let i=1;i<active.length;i++){
+      const growth=active[i]-active[i-1];if(growth>growthTol)violations++;
+      maxGrowth=Math.max(maxGrowth,growth);
+    }
+    const contracted=active[active.length-1]<=runs[0]*.38;
+    if(violations>0||!contracted){out.reason=violations?'run-not-monotonically-contracting':'terminal-run-not-contracted';return {...out,len,cap,runs,active,fromStart,endpoint,growthTol,maxGrowth,contracted,clean};}
+    return {...out,accepted:true,reason:'deskew-owned-contracting-edge-wedge-proved-v1105',
+      depth:endpoint,len,cap,runs,active,fromStart,endpoint,thickness,clean,
+      contractSide:{outer:fs.outer,inner:fs.inner,thickness:fs.thickness}};
+  }
+
+  // V1105 strength is a share of one proven physical depth, never a fixed
+  // pixel allowance and never a second detector. Pixel quantisation may make
+  // Medium and Strong equal for a one-pixel residual; deeper bands separate
+  // proportionally at every resolution.
+  const residualDepthShareV1105=(provenDepth,profileLevel)=>{
+    const d=Math.max(0,Math.round(Number(provenDepth)||0));
+    if(!d)return 0;
+    if(profileLevel==='strong')return d;
+    if(profileLevel==='medium')return Math.max(1,Math.min(d,Math.round(d*2/3)));
+    return 0;
+  };
+
+  const pencilBandDepthShareV1108=(provenDepth,profileLevel)=>{
+    const d=Math.max(0,Math.round(Number(provenDepth)||0));
+    if(!d)return 0;
+    if(profileLevel==='strong')return d;
+    if(profileLevel==='medium')return Math.max(1,Math.min(d,Math.round(d*2/3)));
+    return 1;
+  };
 
   function eraseEdges(cn, opts){
     // V347: Detector는 민감하게 두되, Apply는 구조 게이트를 통과한 경우만 1px crop.
@@ -18745,15 +19115,58 @@ async function __v322RepresentativeNormalizeAndErase(cropMode, baseName){
         if(side==='L')return cropCanvas(cn,depth,0,cn.width-depth,cn.height);
         return cropCanvas(cn,0,0,cn.width-depth,cn.height);
       };
+      const __graphiteVeilCacheV1106=Object.create(null);
+      const __graphiteBandCacheV1108=Object.create(null);
       const scanSide=(side,profileLevel=level)=>{
         const searchCap=searchCapFor(profileLevel);
         const probes=[];
+        // V1106 is an intrinsic one-raster endpoint proof. It is evaluated on
+        // the untouched result and may bypass variance/run guards only when
+        // this exact side is already a measured physical frame.
+        const sideOwnerV1107=opts.residualSideOwnershipV1107;
+        const frameSideV1106=sideOwnerV1107&&sideOwnerV1107.applied&&
+          !sideOwnerV1107.noFrameCrop&&sideOwnerV1107.sides&&sideOwnerV1107.sides[side];
+        const graphiteBandV1108=__graphiteBandCacheV1108[side]||
+          (__graphiteBandCacheV1108[side]=frameSideV1106
+            ?occludedGraphiteFrameBandV1108(cn,side,opts.residualPixelsV1106,sideOwnerV1107)
+            :{accepted:false,reason:'no-front-frame-side-contract'});
+        if(graphiteBandV1108.accepted){
+          const appliedDepth=pencilBandDepthShareV1108(graphiteBandV1108.depth,profileLevel);
+          return {side,accepted:appliedDepth>0,depth:appliedDepth,
+            reason:'source-owned-pencil-physical-band-v1108',searchCap,
+            frameSide:{owner:frameSideV1106.owner||sideOwnerV1107.reason},
+            pencilBandV1108:graphiteBandV1108,
+            depthShareV1108:{provenDepth:graphiteBandV1108.depth,appliedDepth,
+              share:profileLevel==='strong'?1:(profileLevel==='medium'?2/3:'first-layer')},probes};
+        }
+        const graphiteVeilV1106=__graphiteVeilCacheV1106[side]||
+          (__graphiteVeilCacheV1106[side]=frameSideV1106
+            ?occludedGraphiteFrameVeilV1106(cn,side,opts.residualPixelsV1106)
+            :{accepted:false,reason:'no-front-frame-side-contract'});
+        if(graphiteVeilV1106.accepted)return {side,accepted:true,depth:1,
+          reason:'source-owned-occluded-graphite-frame-veil-v1106',searchCap,
+          frameSide:{outer:frameSideV1106.outer,inner:frameSideV1106.inner,
+            thickness:frameSideV1106.thickness,owner:frameSideV1106.owner||sideOwnerV1107.reason},
+          graphiteVeilV1106,probes};
         let firstMiss=-1;
         for(let depth=0;depth<=searchCap+1;depth++){
           const view=viewAtDepth(side,depth);
           const ev=evalTrimSide(view,sideName[side],{...opts,levelOverride:profileLevel}),hit=!!ev.hit;
           probes.push({depth,hit,kind:ev.kind,evidence:ev});
           if(depth===0&&!hit)return {side,accepted:false,depth:0,reason:'edge-not-residual',searchCap,probes};
+          // V1102: Medium/Strong's chromatic proof is complete on the
+          // untouched result.  It owns exactly one raster only when the same
+          // side is already a measured physical source frame.  Do not let a
+          // broader legacy detector walk into row 1 and turn this proven
+          // one-raster endpoint into the old high-variance rejection.
+          if(depth===0&&profileLevel!=='weak'&&ev.chromaticVeil&&ev.chromaticVeil.accepted){
+            const frameSide=opts.frameContract&&opts.frameContract.applied&&
+              opts.frameContract.sides&&opts.frameContract.sides[side];
+            if(frameSide)return {side,accepted:true,depth:1,
+              reason:'source-owned-chromatic-aa-veil-v1102',searchCap,
+              frameSide:{outer:frameSide.outer,inner:frameSide.inner,thickness:frameSide.thickness},
+              chromaticVeil:ev.chromaticVeil,probes};
+          }
           // The final source proof owns the low-variance/frame-family test.
           // Do not reject here with a second, stricter variance constant: a
           // genuine one-pixel AA frame can exceed it while still forming a
@@ -18809,19 +19222,84 @@ async function __v322RepresentativeNormalizeAndErase(cropMode, baseName){
         return weak.accepted?{...weak,strengthFloor:'weak-proof-retained',primaryRejected:primary}:primary;
       };
       const scans={T:scanWithStrengthFloor('T'),B:scanWithStrengthFloor('B'),L:scanWithStrengthFloor('L'),R:scanWithStrengthFloor('R')};
+      // V1105 deskew coordinate reconciliation. The measured physical inner
+      // frame and finalRect are in the same rectified source coordinates.  If
+      // finalRect still crosses that inner boundary, the excess is a known
+      // coordinate error, not an image-classification problem. First prove the
+      // complete overhang against the measured thickness, then apply the same
+      // proportional strength contract as the wedge path. All four sides are
+      // still computed from the untouched cut and applied once below.
+      if(opts.deskewAppliedV1103&&level!=='weak'&&opts.sourceRect&&
+         opts.frameContract&&opts.frameContract.applied&&!opts.frameContract.noFrameCrop&&
+         opts.frameContract.inner&&opts.frameContract.sides){
+        const sr=opts.sourceRect,ir=opts.frameContract.inner;
+        const contractDepth={
+          L:Math.max(0,Math.round(ir.x-sr.x)),
+          T:Math.max(0,Math.round(ir.y-sr.y)),
+          R:Math.max(0,Math.round((sr.x+sr.w)-(ir.x+ir.w))),
+          B:Math.max(0,Math.round((sr.y+sr.h)-(ir.y+ir.h)))
+        };
+        for(const s of ['T','B','L','R']){
+          const fs=opts.frameContract.sides[s];
+          const thickness=Number(fs&&fs.thickness);
+          const strongCap=Number.isFinite(thickness)&&thickness>0
+            ?Math.max(3,Math.ceil(thickness*1.8)+2):0;
+          const provenDepth=contractDepth[s];
+          const appliedDepth=residualDepthShareV1105(provenDepth,level);
+          if(provenDepth>0&&strongCap>0&&provenDepth<=strongCap&&appliedDepth>0){
+            scans[s]={side:s,accepted:true,depth:appliedDepth,
+              reason:level==='strong'
+                ?'deskew-physical-inner-full-depth-strong-v1105'
+                :'deskew-physical-inner-proportional-depth-medium-v1105',
+              coordinateProofV1105:{sourceRect:{...sr},inner:{...ir},
+                provenDepth,appliedDepth,strongCap,share:level==='strong'?1:2/3,
+                thickness,orderedIdx:opts.orderedIdxV1103},
+              primaryRejected:scans[s]};
+          }
+        }
+      }
+      // V1105 Medium/Strong share V1104's exact physical proof. Only the
+      // applied share differs; no level gets a looser detector or a rescan.
+      if((level==='medium'||level==='strong')&&opts.deskewAppliedV1103&&opts.deskewEdgePixelsV1105){
+        for(const s of ['T','B','L','R']){
+          const wedge=deskewOwnedEdgeWedgeProofV1105(
+            cn,s,opts.deskewEdgePixelsV1105,opts.frameContract);
+          const appliedDepth=wedge.accepted?residualDepthShareV1105(wedge.depth,level):0;
+          if(appliedDepth>0&&(!scans[s].accepted||appliedDepth>scans[s].depth)){
+            scans[s]={side:s,accepted:true,depth:appliedDepth,
+              reason:level==='strong'
+                ?'deskew-owned-edge-wedge-full-depth-strong-v1105'
+                :'deskew-owned-edge-wedge-proportional-depth-medium-v1105',
+              wedgeProofV1105:wedge,
+              depthShareV1105:{provenDepth:wedge.depth,appliedDepth,share:level==='strong'?1:2/3},
+              primaryRejected:scans[s]};
+          }
+        }
+      }
       // V1098: only strong may recover a rejected side, and only from this
       // side's own near-complete bilateral frame proof.  No peer vote and no
       // iterative re-scan are permitted.
       if(level==='strong'&&opts.independentEdgeCandidatesV1098){
         for(const s of ['T','B','L','R']){
           const candidate=opts.independentEdgeCandidatesV1098[s];
+          const frameSide=opts.frameContract&&opts.frameContract.applied&&
+            opts.frameContract.sides&&opts.frameContract.sides[s];
+          const ownedThickness=Number(frameSide&&frameSide.thickness);
+          const pencilDepthCap=Number.isFinite(ownedThickness)
+            ?Math.max(4,Math.ceil(ownedThickness*1.6)+2):0;
+          const sourceOwnedPencilV1102=!!(candidate&&candidate.sketchRidgeCandidateV1102&&
+            frameSide&&candidate.depth>0&&candidate.depth<=pencilDepthCap);
+          const candidateAccepted=!!(candidate&&(candidate.accepted||sourceOwnedPencilV1102));
           // V1099: a shallow 1-D approval must not veto a deeper, complete
           // 2-D proof from the same untouched edge.  Adopt the candidate only
           // when it proves strictly more of that physical ridge; crop remains
           // one simultaneous operation and never re-scans the exposed edge.
-          if(candidate&&candidate.accepted&&candidate.depth>0&&(!scans[s].accepted||candidate.depth>scans[s].depth)){
-            scans[s]={side:s,accepted:true,depth:candidate.depth,reason:candidate.reason||'strong-independent-frame-ridge-v1099',
-              candidate,primaryRejected:scans[s]};
+          if(candidateAccepted&&candidate.depth>0&&(!scans[s].accepted||candidate.depth>scans[s].depth)){
+            scans[s]={side:s,accepted:true,depth:candidate.depth,
+              reason:sourceOwnedPencilV1102?'strong-source-owned-pencil-ridge-v1102':(candidate.reason||'strong-independent-frame-ridge-v1099'),
+              candidate,sourceOwnedPencilV1102,pencilDepthCap,
+              frameSide:frameSide&&{outer:frameSide.outer,inner:frameSide.inner,thickness:frameSide.thickness},
+              primaryRejected:scans[s]};
           }
         }
       }
@@ -19018,13 +19496,67 @@ async function __v322RepresentativeNormalizeAndErase(cropMode, baseName){
       // 불규칙/소수 클러스터(processable=false)는 대표값 자체가 없으므로 기존과 동일하게 무제한이다.
       const __eraseMinWV617 = group.processable ? group.target.w : null;
       const __eraseMinHV617 = group.processable ? group.target.h : null;
-      // V1098 reads this untouched cut once only when Strong is selected.
-      // The four side proofs share that pixel buffer and remain independent.
+      // V1103: cards use compact output indices; frame contracts use detector
+      // indices. Empty removal makes them diverge. Resolve orderedIdx once and
+      // prefer the exact contract that owned this crop iteration.
+      const __traceV1103=(__v325CutPostTrace||[]).find(q=>q&&q.idx===it.idx)||null;
+      const __orderedIdxV1103=__traceV1103&&Number.isInteger(__traceV1103.orderedIdx)
+        ?__traceV1103.orderedIdx:it.idx;
+      const __frameContractV1103=(__traceV1103&&__traceV1103.frameContractV1103)||
+        ((__frameContractsV554&&__frameContractsV554[__orderedIdxV1103])||null);
+      // V1107 separates side identity from crop-coordinate ownership. Exact
+      // pencil lattices already prove that all four cell boundaries are frame
+      // sides, but intentionally bypass V554 thickness cropping. Authorize
+      // only V1106's intrinsic one-raster proof with that existing topology.
+      const __ordinaryResidualSidesV1107=!!(__frameContractV1103&&
+        __frameContractV1103.applied&&!__frameContractV1103.noFrameCrop&&
+        __frameContractV1103.sides);
+      const __pencilTopologySidesV1107=!!(
+        (__exactPalePencilV472||__exactExplicitPencilV480)&&
+        !(__frameContractV1103&&(
+          __frameContractV1103.framelessGutterSourceOwnedV919||
+          __frameContractV1103.opencvFramelessGutterV922||
+          /frameless|content-coordinate|background-island/i.test(String(__frameContractV1103.reason||''))))
+      );
+      const __residualSideOwnershipV1107=__ordinaryResidualSidesV1107
+        ?__frameContractV1103
+        :(__pencilTopologySidesV1107?{
+          version:'v1107-pencil-frame-topology-residual-side-owner',applied:true,
+          noFrameCrop:false,reason:__exactExplicitPencilV480
+            ?'explicit-pencil-frame-grid-side-topology-v1107'
+            :'pale-pencil-frame-lattice-side-topology-v1107',
+          sides:Object.fromEntries(['L','R','T','B'].map(s=>[s,{
+            owner:__exactExplicitPencilV480
+              ?'explicit-pencil-frame-grid-v480'
+              :'pale-pencil-frame-lattice-v472'}])),
+          coordinateOwner:false,thicknessOwner:false,padding:false,resize:false
+        }:null);
+      const __deskewAppliedV1105=!!(__traceV1103&&__traceV1103.deskewAppliedV1103);
+      const __needsSharedWedgeProofV1105=!!(
+        (__residualLevel==='medium'||__residualLevel==='strong')&&
+        __deskewAppliedV1105&&__frameContractV1103&&
+        __frameContractV1103.applied&&!__frameContractV1103.noFrameCrop&&
+        __frameContractV1103.sides
+      );
+      const __needsPhysicalSideVeilProofV1106=!!(
+        (__residualLevel==='weak'||__residualLevel==='medium'||__residualLevel==='strong')&&
+        __residualSideOwnershipV1107&&__residualSideOwnershipV1107.applied&&
+        !__residualSideOwnershipV1107.noFrameCrop&&__residualSideOwnershipV1107.sides
+      );
+      // One untouched readback is shared by Medium's proportional wedge and
+      // Strong's full wedge/independent-ridge proofs. Medium pays no readback
+      // cost on non-deskew or unowned-frame cuts; Strong keeps V1104's one-read
+      // behavior byte-for-byte.
       let __independentEdgeCandidatesV1098=null;
-      if(__residualLevel==='strong'){
-        const __pixelsV1098=cn.getContext('2d').getImageData(0,0,cn.width,cn.height).data;
-        __independentEdgeCandidatesV1098=Object.fromEntries(['T','B','L','R'].map(s=>
-          [s,strongIndependentEdgeCandidateV1098(cn,s,__pixelsV1098)]));
+      let __deskewEdgePixelsV1105=null;
+      let __residualPixelsV1106=null;
+      if(__residualLevel==='strong'||__needsSharedWedgeProofV1105||__needsPhysicalSideVeilProofV1106){
+        const __pixelsV1105=cn.getContext('2d').getImageData(0,0,cn.width,cn.height).data;
+        if(__needsPhysicalSideVeilProofV1106)__residualPixelsV1106=__pixelsV1105;
+        if(__needsSharedWedgeProofV1105)__deskewEdgePixelsV1105=__pixelsV1105;
+        if(__residualLevel==='strong')
+          __independentEdgeCandidatesV1098=Object.fromEntries(['T','B','L','R'].map(s=>
+            [s,strongIndependentEdgeCandidateV1098(cn,s,__pixelsV1105)]));
       }
       // V651 final-stage contract:
       // exact/grid flags protect detector coordinates and normalization only.
@@ -19035,8 +19567,13 @@ async function __v322RepresentativeNormalizeAndErase(cropMode, baseName){
         ? {canvas:cn,erased:{L:0,R:0,T:0,B:0},eraseTrace:[],eraseFill:'disabled-residual-off-v454'}
         : eraseEdges(cn,{
             sizeLocked:(group.processable && group.count>=5 && group.spread.w===0 && group.spread.h===0),
-            sourceRect:(()=>{const t=(__v325CutPostTrace||[]).find(q=>q&&q.idx===it.idx);return t&&t.finalRect?{...t.finalRect}:null;})(),
-            frameContract:(__frameContractsV554&&__frameContractsV554[it.idx])||null,
+            sourceRect:__traceV1103&&__traceV1103.finalRect?{...__traceV1103.finalRect}:null,
+            frameContract:__frameContractV1103,
+            orderedIdxV1103:__orderedIdxV1103,
+            deskewAppliedV1103:__deskewAppliedV1105,
+            deskewEdgePixelsV1105:__deskewEdgePixelsV1105,
+            residualPixelsV1106:__residualPixelsV1106,
+            residualSideOwnershipV1107:__residualSideOwnershipV1107,
             independentEdgeCandidatesV1098:__independentEdgeCandidatesV1098,
             // V651: representative size is an automatic-normalization guard,
             // not a veto on an explicitly requested final residual crop.
@@ -22568,13 +23105,17 @@ const __sheetBackgroundV1057=(()=>{
   const out={version:'v1057-common-sheet-background',applied:false,reason:'not-proven',bgRGB:null,support:0};
   try{
     if(!removeEmpty.checked)return {...out,reason:'remove-empty-disabled'};
-    const W=sourceImage.width||0,H=sourceImage.height||0;
+    // V1103: the affine fill and its interpolation seam are not sheet
+    // evidence. Background semantics stay with the untouched source.
+    const __backgroundSourceV1103=(__deskewV658&&__deskewV658.applied)
+      ?__originalSourceV658:sourceImage;
+    const W=__backgroundSourceV1103.width||0,H=__backgroundSourceV1103.height||0;
     if(!W||!H)return {...out,reason:'no-source'};
     const scale=Math.min(1,192/Math.max(W,H));
     const sw=Math.max(1,Math.round(W*scale)),sh=Math.max(1,Math.round(H*scale));
     const c=document.createElement('canvas');c.width=sw;c.height=sh;
     const cx=c.getContext('2d',{willReadFrequently:true});
-    cx.imageSmoothingEnabled=false;cx.drawImage(sourceImage,0,0,sw,sh);
+    cx.imageSmoothingEnabled=false;cx.drawImage(__backgroundSourceV1103,0,0,sw,sh);
     const d=cx.getImageData(0,0,sw,sh).data;
     const band=Math.max(2,Math.round(Math.min(sw,sh)*.045));
     const samples=[];
@@ -24836,7 +25377,11 @@ if (removeEmpty.checked) {
     return {nonWhiteRatio:nonWhite/n,strongInkRatio:strongInk/n,colorInkRatio:colorInk/n,mean,variance,rgbMean,rgbVarianceMax,rgbRangeMax};
   }
 
+  // V1103: affine resampling can leave sparse interpolation dust and long
+  // one-pixel seams even when provenance says OpenCV. The legacy non-pencil
+  // early accept is invalid for that raster class; require connected strokes.
   const __connectedPencilV996=!!(
+    (__deskewV658&&__deskewV658.applied)||
     r.__explicitPencilGridV480||r.__palePencilLatticeV472||
     /pencil/i.test(String(r.__engine||chosenEngine||'')));
   let __occupancyRectV996=null;
@@ -24952,7 +25497,12 @@ if (removeEmpty.checked) {
     const minComponentMass=Math.max(5,Math.ceil(minInk*.25));
     const frameLineLike=q=>
       (q.w>=innerW*.72&&q.h<=Math.max(4,(y1-y0)*.08))||
-      (q.h>=(y1-y0)*.72&&q.w<=Math.max(4,innerW*.08));
+      (q.h>=(y1-y0)*.72&&q.w<=Math.max(4,innerW*.08))||
+      // V1103: four connected thin sides form one large component, so width
+      // and height alone no longer identify it as a frame.  Its mass remains
+      // bounded by a few raster layers of the component perimeter.
+      (q.w>=innerW*.72&&q.h>=(y1-y0)*.72&&
+       q.mass<=Math.ceil(3.5*2*(q.w+q.h)));
     const substantial=roots.filter(q=>q.mass>=minComponentMass&&(q.w>=3||q.h>=3)&&!frameLineLike(q));
     const connectedInk=substantial.reduce((s,q)=>s+q.mass,0);
     const minConnectedInk=Math.max(minInk,Math.round(innerW*(y1-y0)*.0007));
@@ -24995,6 +25545,15 @@ try{
     detectorIntersectionV679:debugInfo.v679DetectorIntersection||null,
     frameBoundaryOwnerV681:(__actualFrameV554&&__actualFrameV554.perFrameBoundaryV681)?{reason:__actualFrameV554.reason,patternGroupV686:__actualFrameV554.patternGroupV686,localSides:__actualFrameV554.localSides||[],inner:{...__actualFrameV554.inner}}:null,
     v317:(debugInfo.v317ResidualTrace||[]).map(t=>({iter:t.iter,hits:t.hits,hitCount:t.hitCount,changed:t.changed,reason:{T:t.stats&&t.stats.T&&t.stats.T.reason,B:t.stats&&t.stats.B&&t.stats.B.reason,L:t.stats&&t.stats.L&&t.stats.L.reason,R:t.stats&&t.stats.R&&t.stats.R.reason},blocked:{T:t.stats&&t.stats.T&&t.stats.T.blocked,B:t.stats&&t.stats.B&&t.stats.B.blocked,L:t.stats&&t.stats.L&&t.stats.L.blocked,R:t.stats&&t.stats.R&&t.stats.R.blocked},edgeMean:{T:t.stats&&t.stats.T&&t.stats.T.edge&&+t.stats.T.edge.mean.toFixed(1),B:t.stats&&t.stats.B&&t.stats.B.edge&&+t.stats.B.edge.mean.toFixed(1),L:t.stats&&t.stats.L&&t.stats.L.edge&&+t.stats.L.edge.mean.toFixed(1),R:t.stats&&t.stats.R&&t.stats.R.edge&&+t.stats.R.edge.mean.toFixed(1)}})),
+    frameContractV1103:(()=>{
+      const q=__actualFrameV554;
+      if(!q)return null;
+      return {applied:!!q.applied,noFrameCrop:!!q.noFrameCrop,reason:q.reason||null,
+        inner:q.inner?{...q.inner}:null,
+        sides:q.sides?Object.fromEntries(Object.entries(q.sides).map(([s,v])=>
+          [s,v&&{outer:v.outer,inner:v.inner,thickness:v.thickness}])):null};
+    })(),
+    deskewAppliedV1103:!!(__deskewV658&&__deskewV658.applied),
     msg:debugInfo.msg||''
   });
 }catch(e){}
