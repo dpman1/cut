@@ -1,4 +1,14 @@
 <!DOCTYPE html>
+<!-- V1109: Repeated closed frames may use a deep solid matte on one axis
+     (thin L/R, thick T/B). The old 6.5% evidence ceiling admitted Squid Game
+     but truncated the same structure when its matte occupied a larger share
+     of the cell. Once the existing source scan reaches that thin-frame limit,
+     continue only through the same uninterrupted longitudinal core and accept
+     the extension only when two source rows/columns prove its endpoint inside
+     the existing credible-inner geometry budget. Publish that measured depth
+     through the existing repeated-side consensus. Empty removal then examines
+     the already-clean inner image; no empty threshold, engine route, fixed
+     crop, rescan of an exposed edge, padding or resize is changed. -->
 <!-- V1108: Topology-owned pencil frames are measured as one physical edge
      band on the untouched result: outer shoulder, graphite core and inner
      shoulder terminate at one evidence-derived endpoint. Weak removes the
@@ -19935,12 +19945,58 @@ function __measureOpenCvActualFrameContractV554(r){
     const seed=candidates[0];let lo=seed.p,hi=seed.p;
     for(let p=seed.p-1;p>=Math.max(0,seed.p-limit);p--){const s=profile(p);if(s.lineRatio<.42||s.darkRatio<.40)break;lo=p;}
     for(let p=seed.p+1;p<=Math.min((side==='L'||side==='R'?W:H)-1,seed.p+limit);p++){const s=profile(p);if(s.lineRatio<.42||s.darkRatio<.40)break;hi=p;}
+    // V1109: `limit` locates a nearby physical side; it must not also become
+    // the maximum frame thickness. If the uninterrupted source band reaches
+    // that neighbourhood boundary, follow only its inward face until two
+    // consecutive non-core profiles prove the endpoint. The maximum walk is
+    // derived from the same 62% credible-inner invariant used below: balanced
+    // opposite sides may consume at most half of the remaining axis each.
+    const leading=side==='L'||side==='T',inward=leading?1:-1;
+    const axisLength=(side==='L'||side==='R')?r.w:r.h;
+    const sourceAxisMax=(side==='L'||side==='R')?W:H;
+    const credibleInnerRatio=.62;
+    const structuralDepth=Math.max(limit,Math.floor(axisLength*(1-credibleInnerRatio)/2));
+    const legacyInner=leading?hi:lo;
+    const legacyDepth=Math.abs(legacyInner-seed.p);
+    const coreProfile=q=>q&&q.lineRatio>=.42&&q.darkRatio>=.40;
+    let deepSolidBandV1109={applied:false,reason:'legacy-neighbourhood-ended-before-limit',
+      limit,structuralDepth,legacyDepth,seed:seed.p,legacyInner};
+    const repeatedPhysicalTopologyV1109=ordered.length>=4&&!!(
+      __gridQualifiedV619||r.__sourceLatticeExactV489||r.__localClosedFrameV491||
+      r.__opencvLocalClosedFrameV491||r.__opencvMergedLatticeCellV549||
+      r.__opencvRepeatedEdgeCellV550||r.__opencvV491FinalPopulationOwnerV907
+    );
+    if(repeatedPhysicalTopologyV1109&&legacyDepth>=limit&&
+       coreProfile(profile(legacyInner))&&structuralDepth>limit){
+      let lastCore=legacyInner,firstMiss=null,endpoint=null;
+      for(let d=limit+1;d<=structuralDepth+1;d++){
+        const p=seed.p+inward*d;
+        if(p<0||p>=sourceAxisMax)break;
+        const s=profile(p);
+        if(coreProfile(s)){lastCore=p;firstMiss=null;continue;}
+        if(firstMiss==null){firstMiss={p,depth:d,profile:s};continue;}
+        endpoint={first:firstMiss,second:{p,depth:d,profile:s}};break;
+      }
+      const extension=Math.abs(lastCore-legacyInner);
+      if(endpoint&&extension>0){
+        if(leading)hi=lastCore;else lo=lastCore;
+        deepSolidBandV1109={applied:true,reason:'two-source-profiles-prove-solid-matte-endpoint-v1109',
+          limit,structuralDepth,legacyDepth,seed:seed.p,legacyInner,lastCore,
+          thicknessBeforeShoulder:hi-lo+1,extension,endpoint};
+      }else{
+        deepSolidBandV1109={applied:false,
+          reason:endpoint?'no-depth-beyond-legacy-neighbourhood':'no-endpoint-inside-credible-inner-budget',
+          limit,structuralDepth,legacyDepth,seed:seed.p,legacyInner,lastCore,extension,endpoint};
+      }
+    }else if(!repeatedPhysicalTopologyV1109){
+      deepSolidBandV1109={...deepSolidBandV1109,
+        reason:'repeated-physical-frame-topology-not-proven'};
+    }
     // V1093: V576 already distinguishes a real JPEG/AA shoulder from picture
     // texture by requiring a continuous pale raster that is darker than the
     // farther interior.  Apply that same proof in the inward direction while
     // the physical black core is still owned by V554, then publish one final
     // thickness.  No later 1px recrop loop is involved.
-    const leading=side==='L'||side==='T',inward=leading?1:-1;
     const coreInner=leading?hi:lo;
     const shoulderLimit=Math.max(1,Math.min(4,Math.ceil(Math.min(r.w,r.h)*.012)));
     const insideSamples=[];
@@ -19977,6 +20033,7 @@ function __measureOpenCvActualFrameContractV554(r){
       coreOuterV1095:leading?coreLoV1095:coreHiV1095,
       coreInnerV1095:leading?coreHiV1095+1:coreLoV1095-1,
       coreThicknessV1095:coreHiV1095-coreLoV1095+1,
+      deepSolidBandV1109,
       innerShoulderV1093:{applied:shoulder>0,pixels:shoulder,limit:shoulderLimit,
         insideBg:+insideBg.toFixed(2),coreMean:+coreMean.toFixed(2),monotonic,
         coreLift:!!coreLift,interiorRise:!!interiorRise,endpointGap:!!endpointGap,
@@ -20330,7 +20387,7 @@ const __dominantFramePatternV686=__framePatternGroupsV686.filter(g=>g.items.leng
 ordered.forEach((r,i)=>{if(!__framePatternGroupByIdxV686.has(i)&&!r.__opencvObservedFrameRectV686&&__dominantFramePatternV686){__framePatternGroupByIdxV686.set(i,__dominantFramePatternV686);r.__framePatternGroupV686=__dominantFramePatternV686.id;}});
 for(const g of __framePatternGroupsV686){
   g.evidence={L:[],R:[],T:[],B:[]};
-  for(const it of g.items){const i=it.i,q=__rawFrameContractsV554[i],r=ordered[i],cap=Math.max(6,Math.round(Math.min(r.w,r.h)*.065));for(const s of ['L','R','T','B']){const z=q&&q.sides&&q.sides[s];if(!z||z.thickness>cap)continue;const nominal=s==='L'?r.x:s==='R'?r.x+r.w-1:s==='T'?r.y:r.y+r.h-1;g.evidence[s].push({delta:z.outer-nominal,thickness:z.thickness});}}
+  for(const it of g.items){const i=it.i,q=__rawFrameContractsV554[i],r=ordered[i],cap=Math.max(6,Math.round(Math.min(r.w,r.h)*.065));for(const s of ['L','R','T','B']){const z=q&&q.sides&&q.sides[s];if(!z||(z.thickness>cap&&!(z.deepSolidBandV1109&&z.deepSolidBandV1109.applied)))continue;const nominal=s==='L'?r.x:s==='R'?r.x+r.w-1:s==='T'?r.y:r.y+r.h-1;g.evidence[s].push({delta:z.outer-nominal,thickness:z.thickness,deepSolidBandV1109:z.deepSolidBandV1109||null});}}
   g.sideModel={};const required=g.items.length<=3?g.items.length:Math.max(2,Math.floor(g.items.length*.55));
   for(const s of ['L','R','T','B']){
     const a=g.evidence[s];
@@ -20369,9 +20426,11 @@ const __globalFrameModelV693=(()=>{
     const cap=Math.max(6,Math.round(Math.min(r.w,r.h)*.065));
     for(const s of ['L','R','T','B']){
       const z=q.sides[s];
-      if(!z||!Number.isFinite(z.outer)||!Number.isFinite(z.thickness)||z.thickness>cap)continue;
+      if(!z||!Number.isFinite(z.outer)||!Number.isFinite(z.thickness)||
+         (z.thickness>cap&&!(z.deepSolidBandV1109&&z.deepSolidBandV1109.applied)))continue;
       const nominal=s==='L'?r.x:s==='R'?r.x+r.w-1:s==='T'?r.y:r.y+r.h-1;
-      evidence[s].push({delta:z.outer-nominal,thickness:z.thickness});
+      evidence[s].push({delta:z.outer-nominal,thickness:z.thickness,
+        deepSolidBandV1109:z.deepSolidBandV1109||null});
     }
   });
   const model={};
@@ -21128,6 +21187,22 @@ const __frameContractsV554=ordered.map((r,i)=>{
   // padding/resize/개별 tight scan을 사용하지 않는다.
   if(!m.L||!m.R||!m.T||!m.B){
     const latticeRestored=!!(r.__opencvMergedLatticeCellV549||r.__opencvRepeatedEdgeCellV550);
+    // V1109 deep measurements are source evidence until all four sides have
+    // the existing repeated-family consensus. A single cut's dark artwork may
+    // also form a long endpoint, so it can never own a deep crop by itself.
+    const deepSolidEvidenceOnlyV1109=!!(__rawFrameContractsV554[i]&&
+      __rawFrameContractsV554[i].sides&&['L','R','T','B'].some(s=>{
+        const z=__rawFrameContractsV554[i].sides[s];
+        return z&&z.deepSolidBandV1109&&z.deepSolidBandV1109.applied;
+      }));
+    if(deepSolidEvidenceOnlyV1109&&!latticeRestored){
+      const q={x:Math.round(r.x),y:Math.round(r.y),w:Math.round(r.w),h:Math.round(r.h)};
+      return {version:'v1109-deep-solid-matte-evidence-only',applied:true,
+        reason:'deep-solid-matte-awaits-four-side-repeated-consensus-v1109',
+        sourceMeasurement:__rawFrameContractsV554[i],sideModel:m,
+        patternGroupV686:patternV686&&patternV686.id,outer:{...q},inner:{...q},
+        noFrameCrop:true,deepSolidEvidenceOnlyV1109:true,padding:false,resize:false};
+    }
     if(!latticeRestored)return __rawFrameContractsV554[i];
     if(__repeatedFramePhaseResultV556.applied){
       const cb=__repeatedFramePhaseResultV556.cellBands&&__repeatedFramePhaseResultV556.cellBands[i];
@@ -23045,8 +23120,10 @@ const __gridMeasuredInsetsV959=(()=>{
   if(!gridFamily||real.length<6){out.reason='not-real-repeated-grid';return out;}
   const sides={};
   for(const s of ['L','R','T','B']){
-    const vals=real.map(v=>v.q&&v.q.sides&&v.q.sides[s]&&Number(v.q.sides[s].thickness))
-      .filter(v=>Number.isFinite(v)&&v>0&&v<=24).sort((a,b)=>a-b);
+    const vals=real.map(v=>v.q&&v.q.sides&&v.q.sides[s])
+      .filter(z=>z&&Number.isFinite(Number(z.thickness))&&Number(z.thickness)>0&&
+        (Number(z.thickness)<=24||(z.deepSolidBandV1109&&z.deepSolidBandV1109.applied)))
+      .map(z=>Number(z.thickness)).sort((a,b)=>a-b);
     if(vals.length<Math.ceil(real.length*.65)){out.reason='insufficient-'+s+'-support';return out;}
     const med=Math.round(vals[Math.floor((vals.length-1)/2)]);
     const agreeing=vals.filter(v=>Math.abs(v-med)<=Math.max(1,Math.round(med*.18))).length;
