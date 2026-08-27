@@ -1,5 +1,22 @@
 <!DOCTYPE html>
-<!-- V1117: Frame removal owns its complete physical endpoint before the
+<!-- V1122: V580 boundary provenance owns whether measured frame insets are
+     still pending (full-source graph) or already represented by an
+     inverse-projected section transition. V1117/V667 may not reopen a final
+     full-source dual boundary. No filename, target size, cut count, padding,
+     resize, or residual-option condition participates. -->
+<!-- V1121: Large complete source-frame matrices publish one original-pixel
+inner endpoint before OpenCV/GRID ownership diverges. The common V491 source
+population, not an engine-specific output subset, owns the four frame sides.
+V491 rectangles are search windows: their exterior white margin and therefore
+their outer width/height may vary. Each side is resolved instead as a continuous
+dark frame run followed by the first non-frame raster. Every directly observed
+cell must prove all four runs and one common inner size. Final engine candidates
+must match that population one-to-one before the source inner coordinate can
+replace their preliminary crop. A proved endpoint is protected from V317 and
+V667 recropping. Under-budget inputs, optional residual-line settings, empty
+filtering and Frame Keep are unchanged.
+
+V1117: Frame removal owns its complete physical endpoint before the
 optional residual-line stage. OpenCV completes only a V491/V580 dual-owned
 inner boundary with the existing two-layer source endpoint proof. GRID derives
 its canonical inner size from the complete physical-frame population measured
@@ -15991,19 +16008,27 @@ if(window.__OPENCV_LOCAL_SECTIONS_V580__.applied){
           __sourceFrameInsetsV489:{...sideInsetMedian},
           __v580BoundaryCompletedV1114:true};
       }
-      // V580 publishes the repeated matte/content boundary. Its
-      // `__sourceFrameInsetsV489` describes evidence used to validate that
-      // boundary; it is not another crop instruction. Applying it here would
-      // consume the same edge twice before V667/V322 (V1116).
+      // V1122 restores the V1114 boundary contract: V580 publishes the local
+      // frame rectangle and __sourceFrameInsetsV489 publishes the measured
+      // stroke between that rectangle and content. Apply that inset exactly
+      // once here. V1116 incorrectly reclassified `inner` as content itself;
+      // V1117 then tried to recover the lost endpoint from the outer raster.
       const sourceFrameInsets=inner.__sourceFrameInsetsV489
         ?{...inner.__sourceFrameInsetsV489}:{...sideInsetMedian};
-      const contentInner={x:inner.x,y:inner.y,w:inner.w,h:inner.h};
-      const __occL=Math.max(0,Math.round(Number(sourceFrameInsets.L)||0));
-      const __occR=Math.max(0,Math.round(Number(sourceFrameInsets.R)||0));
-      const __occT=Math.max(0,Math.round(Number(sourceFrameInsets.T)||0));
-      const __occB=Math.max(0,Math.round(Number(sourceFrameInsets.B)||0));
-      const occupancyInner={x:inner.x+__occL,y:inner.y+__occT,
-        w:inner.w-__occL-__occR,h:inner.h-__occT-__occB};
+      const L=Math.max(0,Math.round(Number(sourceFrameInsets.L)||0));
+      const R=Math.max(0,Math.round(Number(sourceFrameInsets.R)||0));
+      const T=Math.max(0,Math.round(Number(sourceFrameInsets.T)||0));
+      const B=Math.max(0,Math.round(Number(sourceFrameInsets.B)||0));
+      // Sub-section V580 rectangles were inverse-projected from a scaled
+      // section and already represent the matte/content transition; their
+      // inset is retained only as occupancy evidence. Full-source V580
+      // rectangles still represent the local frame and consume the inset.
+      const boundaryProjectionV1122=window.__OPENCV_LOCAL_SECTIONS_V580__.reason===
+        'multiple-local-frame-sections-proven'?'scaled-section-transition':'full-source-local-frame';
+      const contentInner=boundaryProjectionV1122==='scaled-section-transition'
+        ?{x:inner.x,y:inner.y,w:inner.w,h:inner.h}
+        :{x:inner.x+L,y:inner.y+T,w:inner.w-L-R,h:inner.h-T-B};
+      const occupancyInner={x:inner.x+L,y:inner.y+T,w:inner.w-L-R,h:inner.h-T-B};
       if(contentInner.w<20||contentInner.h<20||contentInner.x<outer.x||
         contentInner.y<outer.y||contentInner.x+contentInner.w>outer.x+outer.w||
         contentInner.y+contentInner.h>outer.y+outer.h)return null;
@@ -16016,6 +16041,7 @@ if(window.__OPENCV_LOCAL_SECTIONS_V580__.applied){
           localFrame:{x:inner.x,y:inner.y,w:inner.w,h:inner.h},
           occupancyInner,
           sourceFrameInsets,
+          boundaryProjectionV1122,
           completed:!!inner.__v580BoundaryCompletedV1114,
           padding:false,resize:false}};
     });
@@ -20077,6 +20103,172 @@ function __createSourceGraySamplerV711(rect,padX,padY){
   }catch(e){return null;}
 }
 window.__SOURCE_PIXEL_BUDGET_V596__={pixels:sourceImage.width*sourceImage.height,budget:__sourcePixelBudgetV596,fullReadback:!!__sourcePixelsV554,localRoiFallback:!__sourcePixelsV554,reason:__sourcePixelsV554?'within-memory-budget':'large-source-uses-candidate-roi-readback'};
+// V1121 shared source-matrix endpoint ownership.
+// Large sources lost V1071 only because the full RGBA buffer was absent. Use
+// V711's bounded source sampler on the complete pre-engine V491 population,
+// then allow a final engine candidate to consume the result only after a
+// complete one-to-one geometric match.
+const __sourceMatrixEndpointByCandidateV1121=new WeakMap();
+const __sourceMatrixEndpointV1121=(()=>{
+  const out={version:'v1121-source-frame-run-endpoint',applied:false,
+    reason:'not-qualified',population:0,matched:0,padding:false,resize:false};
+  if(cropMode!=='tight')return {...out,reason:'frame-removal-not-requested'};
+  if(__sourcePixelsV554)return {...out,reason:'under-budget-existing-contract-preserved'};
+  const graph=__sharedLocalClosedV854;
+  if(!(__sharedCompleteMatrixV1012&&graph&&graph.applied&&
+    Array.isArray(graph.rects)&&graph.rects.length>=4&&
+    ordered.length===graph.rects.length))
+    return {...out,reason:'complete-source-matrix-or-final-population-mismatch',
+      population:graph&&graph.rects&&graph.rects.length||0,ordered:ordered.length};
+  const cells=graph.rects.slice().filter(r=>r&&
+    !r.__virtualOccupiedCellV668&&!r.__virtualOpenCvImageBoundsV670)
+    .map((r,index)=>({index,r:{...r,x:Math.round(r.x),y:Math.round(r.y),
+      w:Math.round(r.w),h:Math.round(r.h)}}))
+    .sort((a,b)=>a.r.y-b.r.y||a.r.x-b.r.x);
+  out.population=cells.length;
+  if(cells.length!==ordered.length)
+    return {...out,reason:'one-or-more-source-cells-not-directly-measured'};
+  const names=['L','R','T','B'];
+  const mode=a=>{const f=new Map();a.filter(Number.isFinite).map(Math.round)
+    .forEach(v=>f.set(v,(f.get(v)||0)+1));
+    return [...f].sort((a,b)=>b[1]-a[1]||a[0]-b[0])[0]||null;};
+  // V491 rectangles are bounded search windows, not physical outer-frame
+  // endpoints. Their amount of exterior white margin can legitimately vary by
+  // row and column, so outer-window spread must never veto an otherwise exact
+  // four-line measurement.
+  const outerWidths=cells.map(v=>v.r.w),outerHeights=cells.map(v=>v.r.h),
+    outerW=mode(outerWidths),outerH=mode(outerHeights),
+    outerSpread={w:Math.max(...outerWidths)-Math.min(...outerWidths),
+      h:Math.max(...outerHeights)-Math.min(...outerHeights)};
+  const W=sourceImage.width,H=sourceImage.height;
+  const sideStats=(r,side,offset,gray)=>{
+    const horizontal=side==='T'||side==='B',len=horizontal?r.w:r.h;
+    const a=Math.floor(len*.07),b=Math.max(a+1,Math.ceil(len*.93));
+    let sum=0,n=0,dark=0,run=0,maxRun=0;
+    for(let p=a;p<b;p++){
+      const x=side==='L'?r.x+offset:
+        side==='R'?r.x+r.w-1-offset:r.x+p;
+      const y=side==='T'?r.y+offset:
+        side==='B'?r.y+r.h-1-offset:r.y+p;
+      if(x<0||x>=W||y<0||y>=H)continue;
+      const g=gray(x,y);sum+=g;n++;
+      if(g<150){dark++;run++;maxRun=Math.max(maxRun,run);}else run=0;
+    }
+    return n?{mean:sum/n,darkRatio:dark/n,lineRatio:maxRun/n}:null;
+  };
+  const transition=(r,side,gray,limit)=>{
+    const profile=[];
+    for(let offset=0;offset<=limit;offset++){
+      const s=sideStats(r,side,offset,gray);
+      profile.push(s?{...s,offset,frame:Number.isFinite(s.mean)&&s.mean<=42&&
+        s.darkRatio>=.65&&s.lineRatio>=.58}:null);
+    }
+    // Locate the longest continuous physical-frame run. Whitespace before it
+    // belongs to the V491 search window; it is not a zero-thickness frame.
+    const runs=[];let run=[];
+    for(const s of profile){
+      if(s&&s.frame)run.push(s);
+      else if(run.length){runs.push(run);run=[];}
+    }
+    if(run.length)runs.push(run);
+    runs.sort((a,b)=>b.length-a.length||a[0].offset-b[0].offset);
+    const physical=runs[0];
+    if(!physical||!physical.length)return null;
+    const last=physical[physical.length-1].offset;
+    const frameMean=physical.reduce((n,s)=>n+s.mean,0)/physical.length;
+    for(let offset=last+1;offset<=limit;offset++){
+      const s=profile[offset];
+      const stillFrame=!!(s&&s.darkRatio>=.65&&s.lineRatio>=.58);
+      if(s&&Number.isFinite(s.mean)&&s.mean>=Math.max(30,frameMean+26)&&
+        !stillFrame)
+        return {thickness:offset,frameStart:physical[0].offset,
+          frameEnd:last,frameLength:physical.length,
+          outerMean:+frameMean.toFixed(2),innerMean:+s.mean.toFixed(2),
+          darkRatio:+s.darkRatio.toFixed(3),lineRatio:+s.lineRatio.toFixed(3)};
+    }
+    return null;
+  };
+  const measured=cells.map(cell=>{
+    const r=cell.r,limit=Math.max(3,Math.min(24,
+      Math.round(Math.min(r.w,r.h)*.04)));
+    const sampler=__createSourceGraySamplerV711(r,limit+2,limit+2);
+    if(!sampler)return {...cell,valid:false,reason:'bounded-source-roi-unavailable'};
+    const sides=Object.fromEntries(names.map(side=>[side,
+      transition(r,side,sampler.gray,limit)]));
+    return {...cell,sides,valid:names.every(side=>!!sides[side]),
+      pixelSource:sampler.mode};
+  });
+  const required=Math.floor(cells.length/2)+1;
+  const validFourSide=measured.filter(v=>v.valid).length;
+  if(validFourSide!==cells.length)
+    return {...out,reason:'one-or-more-source-frame-runs-incomplete',required,
+      validFourSide,outerW,outerH,outerSpread};
+  const sideVotes=Object.fromEntries(names.map(side=>[side,
+    mode(measured.map(v=>v.sides[side].thickness))]));
+  const sideRanges=Object.fromEntries(names.map(side=>{
+    const a=measured.map(v=>v.sides[side].thickness);
+    return [side,{min:Math.min(...a),max:Math.max(...a),mode:sideVotes[side]}];
+  }));
+  const innerWVote=mode(measured.map(v=>v.sides&&v.sides.L&&v.sides.R
+    ?v.r.w-v.sides.L.thickness-v.sides.R.thickness:null));
+  const innerHVote=mode(measured.map(v=>v.sides&&v.sides.T&&v.sides.B
+    ?v.r.h-v.sides.T.thickness-v.sides.B.thickness:null));
+  if(!innerWVote||!innerHVote||innerWVote[1]<required||innerHVote[1]<required)
+    return {...out,reason:'source-inner-size-majority-incomplete',required,
+      sideVotes,sideRanges,innerWVote,innerHVote};
+  const target={w:innerWVote[0],h:innerHVote[0]};
+  if(target.w<20||target.h<20)
+    return {...out,reason:'source-inner-too-small',sideRanges,target};
+  // Do not infer or repair a cell here. Exact ownership is granted only when
+  // every directly observed cell independently resolves to the common inner
+  // size. This keeps mixed-format sheets on their existing paths.
+  if(measured.some(v=>v.r.w-v.sides.L.thickness-v.sides.R.thickness!==target.w||
+    v.r.h-v.sides.T.thickness-v.sides.B.thickness!==target.h))
+    return {...out,reason:'per-cell-source-inner-size-not-exact',required,
+      target,innerWVote,innerHVote,sideRanges,outerSpread};
+  const endpoints=measured.map(v=>({index:v.index,outer:{...v.r},inner:{
+    x:v.r.x+v.sides.L.thickness,y:v.r.y+v.sides.T.thickness,
+    w:target.w,h:target.h},sides:Object.fromEntries(names.map(side=>[side,
+      {...v.sides[side]}]))}));
+  const overlapMin=(a,b)=>{
+    const x0=Math.max(a.x,b.x),y0=Math.max(a.y,b.y),
+      x1=Math.min(a.x+a.w,b.x+b.w),y1=Math.min(a.y+a.h,b.y+b.h);
+    return Math.max(0,x1-x0)*Math.max(0,y1-y0)/
+      Math.max(1,Math.min(a.w*a.h,b.w*b.h));
+  };
+  const used=new Set(),matches=[];
+  for(const r of ordered){
+    const cx=r.x+r.w/2,cy=r.y+r.h/2;
+    let best=null,bestScore=Infinity;
+    for(let ei=0;ei<endpoints.length;ei++){
+      if(used.has(ei))continue;
+      const e=endpoints[ei],o=e.outer,
+        dx=Math.abs(cx-(o.x+o.w/2))/Math.max(1,o.w),
+        dy=Math.abs(cy-(o.y+o.h/2))/Math.max(1,o.h),
+        overlap=overlapMin(r,o),score=dx+dy+(1-overlap);
+      if(dx<=.18&&dy<=.18&&overlap>=.72&&score<bestScore){
+        best={ei,e,dx,dy,overlap};bestScore=score;
+      }
+    }
+    if(!best)return {...out,reason:'final-candidate-not-one-to-one-with-source-cell',
+      required,sideVotes,sideRanges,target,matched:matches.length};
+    used.add(best.ei);matches.push({r,...best});
+  }
+  if(matches.length!==ordered.length||used.size!==ordered.length)
+    return {...out,reason:'source-cell-one-to-one-match-incomplete',
+      required,sideVotes,sideRanges,target,matched:matches.length};
+  matches.forEach(m=>{
+    __sourceMatrixEndpointByCandidateV1121.set(m.r,m.e);
+    m.r.__sourceMatrixEndpointV1121=true;
+  });
+  return {...out,applied:true,reason:'complete-source-matrix-frame-run-endpoint-v1121',
+    matched:matches.length,required,sideVotes,sideRanges,target,
+    validFourSide,outerW,outerH,outerSpread,
+    boxes:endpoints.map(e=>({outer:e.outer,inner:e.inner})),
+    matchAudit:matches.map(m=>({sourceIndex:m.e.index+1,
+      overlap:+m.overlap.toFixed(3),dx:+m.dx.toFixed(3),dy:+m.dy.toFixed(3)}))};
+})();
+window.__SOURCE_MATRIX_ENDPOINT_V1121__=__sourceMatrixEndpointV1121;
 window.__OPENCV_ACTUAL_FRAME_CONTRACT_V554__=[];
 const __directRepeatedGeometryV863=chosenEngine==='opencv'&&ordered.length>=2&&ordered.every(q=>q&&String(q.__engine||'').startsWith('opencv'))&&(()=>{
   const ws=ordered.map(q=>Math.round(q.w)),hs=ordered.map(q=>Math.round(q.h));
@@ -23772,7 +23964,22 @@ const __dualBoundaryValidV1114=!!(__dualInnerV1114&&
   __dualInnerV1114.x>=r.x&&__dualInnerV1114.y>=r.y&&
   __dualInnerV1114.x+__dualInnerV1114.w<=r.x+r.w&&
   __dualInnerV1114.y+__dualInnerV1114.h<=r.y+r.h);
-if(__dualBoundaryValidV1114&&(cropMode==='tight'||cropMode==='frame')){
+const __sharedSourceEndpointV1121=__sourceMatrixEndpointByCandidateV1121.get(r)||null;
+if(cropMode==='tight'&&__sharedSourceEndpointV1121){
+  const q=__sharedSourceEndpointV1121.inner;
+  x=Math.round(q.x);y=Math.round(q.y);w=Math.round(q.w);h=Math.round(q.h);
+  debugInfo.msg='V1121-SourceFrameRunEndpoint';
+  debugInfo.L=x-r.x;debugInfo.T=y-r.y;
+  debugInfo.R=r.x+r.w-(x+w);debugInfo.B=r.y+r.h-(y+h);
+  debugInfo.frameW=r.w;debugInfo.frameH=r.h;
+  debugInfo.finalW=w;debugInfo.finalH=h;
+  debugInfo.sourceMatrixEndpointV1121={
+    outer:{...__sharedSourceEndpointV1121.outer},inner:{...q},
+    population:__sourceMatrixEndpointV1121.population,
+    matched:__sourceMatrixEndpointV1121.matched,
+    sideRanges:__sourceMatrixEndpointV1121.sideRanges,
+    padding:false,resize:false};
+} else if(__dualBoundaryValidV1114&&(cropMode==='tight'||cropMode==='frame')){
   const q=cropMode==='tight'
     ?__dualInnerV1114
     :{x:r.x,y:r.y,w:r.w,h:r.h};
@@ -25420,11 +25627,16 @@ const __v317OpenCVGridResidual = (r.__engine === 'opencv' && __cvLayoutConsisten
 // test completes the main Tight crop itself, independent of the optional
 // residual-line control. GRID keeps its population source-axis owner; it must
 // not run this per-cut pixel path and then propagate a local artwork hit.
-const __sourceOwnedPrimaryFrameEndpointV1117=!!__dualBoundaryValidV1114;
+// V1122: only inverse-projected multi-section transitions need V1117's source
+// pixel endpoint completion. A full-source local frame already owns the final
+// boundary after its measured inset is applied above.
+const __sourceOwnedPrimaryFrameEndpointV1117=!!(
+  __dualBoundaryValidV1114&&!__sharedSourceEndpointV1121&&
+  __dualInnerV1114.boundaryProjectionV1122==='scaled-section-transition');
 // V470: V467의 검정 separator 사이 영역은 이미 원본 셀의 정확한 좌표다.
 // 공통 1~2px 잔여선 cleaner가 그림 자체의 어두운 가장자리를 프레임으로 오인해
 // 셀마다 다른 크기로 다시 자르지 못하도록 여기서도 완전히 제외한다.
-if(cropMode === 'tight' && w > 30 && h > 30 && !r.__framelessGutterSourceOwnedV919 && (!r.__opencvProtectionV551||r.__opencvBackgroundIslandV887||__sourceOwnedPrimaryFrameEndpointV1117) && (!r.__sourceLatticeExactV489||__sourceOwnedPrimaryFrameEndpointV1117) && !r.__darkGutterLatticeV467 && !r.__palePencilLatticeV472 && !r.__explicitPencilGridV480){
+if(cropMode === 'tight' && !__sharedSourceEndpointV1121 && w > 30 && h > 30 && !r.__framelessGutterSourceOwnedV919 && (!r.__opencvProtectionV551||r.__opencvBackgroundIslandV887||__sourceOwnedPrimaryFrameEndpointV1117) && (!r.__sourceLatticeExactV489||__sourceOwnedPrimaryFrameEndpointV1117) && !r.__darkGutterLatticeV467 && !r.__palePencilLatticeV472 && !r.__explicitPencilGridV480){
   let trimL=0,trimR=0,trimT=0,trimB=0;
 
   function __grayFromDataV317(d, ww, xx, yy){
@@ -27250,7 +27462,8 @@ function __v667StructuralCoordinateSizeContract(){
     // V783 already owns the exact source rectangle.  V667 is validation-only
     // for this class and must not shrink the proven clean inner boundary.
   if(r&&(r.__fastCommonFrameCanonicalV783||r.__repeatedFrameMajorityCanonicalV888||
-    r.__completeMatrixMeasuredAxesFinalV1040||r.__directLineTransitionCropV1071))continue;
+    r.__completeMatrixMeasuredAxesFinalV1040||r.__directLineTransitionCropV1071||
+    r.__sourceMatrixEndpointV1121))continue;
     // V911 ownership boundary: when V580's complete population contains
     // independently measured four-side frames, those measurements own their
     // differing source geometry.  Completeness proves the frames; it does not
@@ -27411,7 +27624,19 @@ function __v667StructuralCoordinateSizeContract(){
     const __supportWV1116=__measurementPoolV1117.filter(v=>v.inner.w===__measuredWV1116).length;
     const __supportHV1116=__measurementPoolV1117.filter(v=>v.inner.h===__measuredHV1116).length;
     const __requiredMeasuredV1116=Math.max(2,Math.floor(__measurementPopulationV1117/2)+1);
+    // V1122: V1114 dual-boundary candidates already own their exact per-cut
+    // content rectangles. A later group mode over V554 fallback measurements
+    // is a different coordinate owner and must not enlarge/shift those cuts.
+    // GRID population normalization remains unchanged because it has no V1114
+    // dual-boundary owner and is explicitly sourced from the full population.
+    const __dualBoundaryGroupOwnedV1122=items.length>0&&items.every(it=>{
+      const oi=Number.isInteger(it.t.orderedIdx)?it.t.orderedIdx:it.t.idx;
+      const candidate=ordered[oi];
+      return !!(candidate&&candidate.__dualBoundaryOwnerV1114&&
+        candidate.__v580InnerBoundaryV1114);
+    });
     const __sourceMeasuredCanonicalV1116=!!(
+      !__dualBoundaryGroupOwnedV1122&&
       __measurementPoolV1117.length>=__requiredMeasuredV1116&&
       // The endpoint itself, not merely the subset that happened to be
       // measurable, must own an absolute majority of the whole structure.
