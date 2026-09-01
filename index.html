@@ -1,4 +1,19 @@
 <!DOCTYPE html>
+<!-- V1129: Per-cut endpoint probes run on detached contracts, so an ambiguous
+     local scan cannot contaminate the repeated-frame model. Independent crop
+     ownership requires the same four-side physical-transition proof across a
+     broad majority of the source population; otherwise the complete repeated
+     source contract remains authoritative. This is coordinate arbitration,
+     never normalization, padding, resize, or residual-mode cleanup. -->
+<!-- V1128: A complete four-side source frame owns each cut independently.
+     Its endpoint follows the complete physical stroke, including a proven
+     attached thin line. Repeated-size statistics validate outer structure
+     only: they cannot resize, pad, or replace a proven per-cut endpoint, and
+     the generic residual cleaner cannot crop that boundary a second time. -->
+<!-- V1123: Optional residual cleanup is per-cut pixel ownership. A group size
+     floor may constrain it only when V667 has independently published an
+     absolute-majority source-measured canonical endpoint for every member.
+     Ordinary repeated layouts never vote away weak/medium/strong evidence. -->
 <!-- V1122: V580 boundary provenance owns whether measured frame insets are
      still pending (full-source graph) or already represented by an
      inverse-projected section transition. V1117/V667 may not reopen a final
@@ -1538,9 +1553,86 @@ h1,h2,h3,p{margin-block-start:0;}
   display:none!important;
 }
 </style>
+<style id="dpconti-tools-menu">
+.dpc-tools-menu,
+.dpc-tools-menu *{box-sizing:border-box}
+#dpcToolsButton.dpc-tools-button{
+  position:fixed;left:10px;top:20px;z-index:1000001;
+  width:32px!important;min-width:32px!important;
+  height:32px!important;min-height:32px!important;
+  margin:0!important;padding:0!important;border:0!important;
+  border-radius:0!important;background:transparent!important;
+  display:flex!important;align-items:center!important;justify-content:center!important;
+  cursor:pointer!important;opacity:.82;box-shadow:none!important;outline:0!important;
+  -webkit-appearance:none!important;appearance:none!important;
+  -webkit-tap-highlight-color:transparent!important
+}
+#dpcToolsButton.dpc-tools-button:hover,
+#dpcToolsButton.dpc-tools-button:active,
+#dpcToolsButton.dpc-tools-button:focus,
+#dpcToolsButton.dpc-tools-button:focus-visible{
+  width:32px!important;min-width:32px!important;
+  height:32px!important;min-height:32px!important;
+  padding:0!important;border:0!important;border-radius:0!important;
+  background:transparent!important;box-shadow:none!important;outline:0!important
+}
+#dpcToolsButton.dpc-tools-button:hover{opacity:1}
+#dpcToolsButton.dpc-tools-button:active{opacity:.65}
+#dpcToolsButton .dpc-tools-button-lines{
+  display:block!important;position:relative!important;
+  width:22px!important;min-width:22px!important;
+  height:16px!important;min-height:16px!important;
+  padding:0!important;border:0!important;border-radius:0!important;
+  background:
+    linear-gradient(#666,#666) 0 0/22px 2px no-repeat,
+    linear-gradient(#666,#666) 0 7px/22px 2px no-repeat,
+    linear-gradient(#666,#666) 0 14px/22px 2px no-repeat!important;
+  box-shadow:none!important;transform:none!important
+}
+#dpcToolsButton .dpc-tools-button-lines::before,
+#dpcToolsButton .dpc-tools-button-lines::after{display:none!important;content:none!important}
+.dpc-tools-backdrop{
+  position:fixed;inset:0;z-index:999999;display:none;
+  background:rgba(0,0,0,.18)
+}
+.dpc-tools-panel{
+  position:fixed;left:8px;top:50px;z-index:1000000;
+  display:none;width:min(250px,calc(100vw - 16px));
+  padding:8px;border:1px solid #d2d2d2;border-radius:14px;
+  background:#fff;box-shadow:0 8px 28px rgba(0,0,0,.18)
+}
+body.dpc-tools-open .dpc-tools-backdrop,
+body.dpc-tools-open .dpc-tools-panel{display:block}
+.dpc-tools-title{
+  padding:8px 10px 6px;color:#777;font-size:13px;
+  font-weight:700;letter-spacing:.2px
+}
+.dpc-tools-link{
+  width:100%;height:42px;padding:0 12px;border:0!important;
+  border-radius:10px!important;background:transparent!important;
+  color:#111!important;display:flex;align-items:center;
+  justify-content:space-between;gap:10px;text-align:left;
+  font-size:15px!important;font-weight:700!important;
+  line-height:1;text-decoration:none!important;box-shadow:none!important
+}
+.dpc-tools-link:hover{background:#f1f5f9!important}
+.dpc-tools-link.is-active{background:#eaf3ff!important;color:#0b64c0!important}
+.dpc-tools-divider{height:1px;margin:8px 4px;background:#e5e5e5}
+</style>
 </head>
 
 <body>
+<div class="dpc-tools-menu">
+  <button id="dpcToolsButton" class="dpc-tools-button" type="button" aria-label="메뉴 열기" aria-controls="dpcToolsPanel" aria-expanded="false"><span class="dpc-tools-button-lines"></span></button>
+  <div id="dpcToolsBackdrop" class="dpc-tools-backdrop"></div>
+  <nav id="dpcToolsPanel" class="dpc-tools-panel" aria-label="DPCONTI 도구 메뉴">
+    <div class="dpc-tools-title">DPCONTI TOOLS</div>
+    <a class="dpc-tools-link is-active" href="https://cut.entercredit.kr" aria-current="page">CUT <span>›</span></a>
+    <a class="dpc-tools-link" href="https://sheet.entercredit.kr">SHEET <span>›</span></a>
+    <div class="dpc-tools-divider"></div>
+    <a class="dpc-tools-link" href="https://dpconti.com" target="_blank" rel="noopener noreferrer">홈페이지 <span>↗</span></a>
+  </nav>
+</div>
 <!-- STRICT BUILD: V287 engine body preserved. HERO LOGO TEST 08: option spacing stabilized. -->
 
 <div class="brand-logo" aria-label="G CUT">
@@ -19677,6 +19769,17 @@ async function __v322RepresentativeNormalizeAndErase(cropMode, baseName){
   let processedClusters=0;
   let skippedClusters=0;
   let renderedSinceYieldV596=0;
+  // V1123: retain a size floor only for cards whose final content endpoint was
+  // already established by V667's absolute-majority source measurement. This
+  // is coordinate provenance, not a generic repeated-layout vote.
+  const __sourceMeasuredEndpointIdxV1123=new Set();
+  for(const g of ((window.__STRUCTURAL_COORD_SIZE_V667__||{}).groups||[])){
+    if(!g||!g.sourceMeasuredCanonicalV1116)continue;
+    for(const row of (g.rows||[])){
+      const idx=(Number(row&&row.idx)||0)-1;
+      if(idx>=0)__sourceMeasuredEndpointIdxV1123.add(idx);
+    }
+  }
   const __skipPerCellResidualGridV460=!!(
     cropMode==='tight' &&
     window.__GRID_LATTICE_COORD_NORMALIZE_DEBUG__ &&
@@ -19817,13 +19920,16 @@ async function __v322RepresentativeNormalizeAndErase(cropMode, baseName){
       __pendingResidualV1116.push({it,original:it.canvas,cn,er,eraseOptions:__eraseOptionsV1116,
         beforeNormalize,targetW,targetH,fit,normalizeGroup});
     }
-    // V1116: independently proven repeated cells may disagree by one raster
-    // because AA evidence is strongest on different artwork. The modal
-    // proposed endpoint is a lower bound only: rerun proposals that crossed
-    // it, never pad/resize and never force a weak side to crop. This makes the
-    // physical boundary the owner instead of residual-strength iteration.
+    // V1123: ordinary groups keep per-cut residual ownership. The former V1116
+    // modal floor is allowed only when every member has an independently
+    // published source-measured canonical endpoint (for example the proven
+    // 800x340 physical inner family). It may then prevent artwork-driven
+    // under-crop, but it cannot cap Two-pyo/Samdsoo-style residual evidence.
+    const __sourceMeasuredEndpointGroupV1123=group.items.length>0&&
+      group.items.every(it=>__sourceMeasuredEndpointIdxV1123.has(it.idx));
     let __modalEndpointV1116=null;
-    if(exactSourceGroupV595&&group.processable&&__residualLevel!=='off'&&__pendingResidualV1116.length>=4){
+    if(__sourceMeasuredEndpointGroupV1123&&exactSourceGroupV595&&group.processable&&
+      __residualLevel!=='off'&&__pendingResidualV1116.length>=4){
       const __ws=__pendingResidualV1116.map(v=>v.cn.width),__hs=__pendingResidualV1116.map(v=>v.cn.height);
       const __mw=medianNum(__ws),__mh=medianNum(__hs);
       __modalEndpointV1116={w:modeNearMedian(__ws,__mw,Math.max(1,group.spread.w+4)),
@@ -19850,6 +19956,7 @@ async function __v322RepresentativeNormalizeAndErase(cropMode, baseName){
       log.push({num:(it.card.querySelector('.num')||{}).textContent, before:it.w+'x'+it.h,
         after:cn.width+'x'+cn.height,cluster:group.id,target:p.targetW+'x'+p.targetH,
         modalEndpointV1116:__modalEndpointV1116,
+        sourceMeasuredEndpointGroupV1123:__sourceMeasuredEndpointGroupV1123,
         normalizedV451:normalizeGroup&&(beforeNormalize.w!==cn.width||beforeNormalize.h!==cn.height),
         beforeNormalize:beforeNormalize.w+'x'+beforeNormalize.h,trim:fit.trim,
         preClean:fit.preClean||{L:0,R:0,T:0,B:0},evidenceClean:fit.evidenceClean||null,
@@ -20613,14 +20720,61 @@ const __v907OriginalPopulationProvenV1080=__v907IndicesV1080.length>0&&
     return ['L','R','T','B'].every(s=>Number.isFinite(t[s])&&t[s]>=Math.max(1,Math.round(Number(si[s])||0)))&&
       __v907PairAgreesV1080(t.L,t.R)&&__v907PairAgreesV1080(t.T,t.B);
   });
+// V1126: V491 is a downscaled topology envelope, not a minimum physical
+// thickness.  Do not discard every source measurement because one picture
+// touches one side.  A strongly supported source thickness validates the
+// family; each cut keeps every agreeing side, and only an implausible side's
+// inward endpoint is rebuilt from that side's own measured outer line.
+const __v907SideEndpointConsensusV1126=(()=>{
+  const names=['L','R','T','B'],required=Math.max(2,Math.ceil(__v907IndicesV1080.length*.60));
+  const modes={},support={};
+  for(const s of names){
+    const freq=new Map();
+    for(const i of __v907IndicesV1080){
+      const z=__rawFrameContractsV554[i]&&__rawFrameContractsV554[i].sides&&__rawFrameContractsV554[i].sides[s];
+      const t=z&&Math.round(Number(z.thickness)),score=z&&z.score;
+      if(!Number.isFinite(t)||t<1||!(score&&score.lineRatio>=.85&&score.darkRatio>=.80))continue;
+      freq.set(t,(freq.get(t)||0)+1);
+    }
+    const vote=[...freq].sort((a,b)=>b[1]-a[1]||a[0]-b[0])[0]||null;
+    if(!vote||vote[1]<required)return {applied:false,reason:'strong-side-thickness-support-insufficient',required,modes,support};
+    modes[s]=vote[0];support[s]=vote[1];
+  }
+  if(!__v907PairAgreesV1080(modes.L,modes.R)||!__v907PairAgreesV1080(modes.T,modes.B))
+    return {applied:false,reason:'supported-opposite-side-thickness-conflict',required,modes,support};
+  return {applied:true,reason:'strong-source-side-endpoint-consensus',required,modes,support};
+})();
 if(__v907IndicesV1080.length){
   for(const i of __v907IndicesV1080){
-    if(__v907OriginalPopulationProvenV1080){
+    if(__v907SideEndpointConsensusV1126.applied){
       const q=__rawFrameContractsV554[i];
-      q.version='v1080-v907-original-source-frame-contract';
-      q.reason='four-source-frame-lines-proven';
-      q.v907OriginalThicknessOwnerV1080=true;
-      q.v491PopulationEvidenceV1080=true;
+      if(q&&q.applied&&q.reason==='four-source-frame-lines-proven'&&q.outer&&q.sides){
+        const repaired=[];
+        for(const s of ['L','R','T','B']){
+          const z=q.sides[s],target=__v907SideEndpointConsensusV1126.modes[s];
+          const local=Math.round(Number(z&&z.thickness));
+          const tolerance=Math.max(1,Math.round(target*.25));
+          if(!Number.isFinite(local)||Math.abs(local-target)>tolerance){
+            z.thickness=target;
+            z.inner=(s==='L'||s==='T')?Math.round(z.outer+target):Math.round(z.outer-target);
+            repaired.push(s);
+          }
+        }
+        const {L,R,T,B}=q.sides;
+        q.outer={x:L.outer,y:T.outer,w:R.outer-L.outer+1,h:B.outer-T.outer+1};
+        q.inner={x:L.inner,y:T.inner,w:R.inner-L.inner+1,h:B.inner-T.inner+1};
+        q.version='v1126-v907-per-side-source-endpoint-contract';
+        q.reason='four-source-frame-lines-proven';
+        q.v907OriginalThicknessOwnerV1080=true;
+        q.v907PerSideEndpointOwnerV1126=true;
+        q.repairedSidesV1126=repaired;
+        q.v491PopulationEvidenceV1080=true;
+        q.padding=false;q.resize=false;
+      }
+    }else if(__v907OriginalPopulationProvenV1080){
+      const q=__rawFrameContractsV554[i];
+      q.version='v1080-v907-original-source-frame-contract';q.reason='four-source-frame-lines-proven';
+      q.v907OriginalThicknessOwnerV1080=true;q.v491PopulationEvidenceV1080=true;
       q.padding=false;q.resize=false;
     }else{
       const fallback=__v907StoredV491FrameContractV1080(ordered[i]);
@@ -20628,11 +20782,102 @@ if(__v907IndicesV1080.length){
     }
   }
 }
+// V1128: a proven source frame owns its endpoint after the complete physical
+// stroke, including a thin continuous residual line attached to its solid
+// core. Re-read only the already-proven four outer strokes. After the solid
+// core ends, consume one attached line only when it spans the side and the
+// immediately following source line makes a decisive transition into image
+// content. This is a per-cut boundary measurement; population size consensus,
+// normalization, padding and resize never participate.
+const __physicalEndpointRefineV1127=[];
+const __refinePhysicalFrameEndpointV1128=(q,index,record=true)=>{
+  if(!(q&&q.applied&&q.outer&&q.inner&&q.sides&&
+    ['L','R','T','B'].every(s=>q.sides[s]&&
+      Number.isFinite(q.sides[s].outer)&&Number.isFinite(q.sides[s].inner))))return false;
+  const sampler=__createSourceGraySamplerV711(q.outer,4,4);
+  if(!sampler)return false;
+  const before={...q.inner},sides={};
+  const line=(side,p)=>{
+    const horizontal=side==='T'||side==='B';
+    const lo=Math.round(horizontal?q.outer.x:q.outer.y);
+    const len=Math.round(horizontal?q.outer.w:q.outer.h);
+    const a=lo+Math.floor(len*.07),b=lo+Math.max(1,Math.ceil(len*.93));
+    let n=0,black=0,dark=0,mid=0,run=0,maxRun=0,sum=0,sumSq=0;
+    for(let k=a;k<b;k++){
+      const g=horizontal?sampler.gray(k,p):sampler.gray(p,k);
+      n++;sum+=g;sumSq+=g*g;
+      if(g<45)black++;
+      if(g<105)dark++;
+      if(g<170)mid++;
+      if(g<220){run++;if(run>maxRun)maxRun=run;}else run=0;
+    }
+    const mean=sum/Math.max(1,n);
+    return {mean,variance:Math.max(0,sumSq/Math.max(1,n)-mean*mean),
+      blackRatio:black/Math.max(1,n),darkRatio:dark/Math.max(1,n),
+      midRatio:mid/Math.max(1,n),lineRatio:maxRun/Math.max(1,n)};
+  };
+  const endpoint=side=>{
+    const z=q.sides[side],sign=(side==='L'||side==='T')?1:-1;
+    const start=Math.round(z.outer),limit=Math.max(2,Math.min(64,
+      Math.round((side==='L'||side==='R'?q.outer.w:q.outer.h)*.10)));
+    const outerStat=line(side,start);
+    if(!(outerStat.blackRatio>=.82&&outerStat.darkRatio>=.90))
+      return {applied:false,reason:'outer-stroke-not-near-solid',value:Math.round(z.inner),outerStat};
+    let lastFrame=start;
+    for(let d=1;d<=limit;d++){
+      const p=start+sign*d,st=line(side,p);
+      const frame=st.blackRatio>=.78&&st.darkRatio>=.88&&st.mean<=72;
+      if(!frame){
+        const next=line(side,p+sign);
+        const contrast=next.mean-st.mean;
+        // A residual stroke is not inferred merely because an edge is dark.
+        // It must be a nearly unbroken one-pixel line attached directly to
+        // the solid core, followed immediately by a strong content change.
+        // Broad/dark artwork that continues inward therefore remains content.
+        const attachedResidual=st.lineRatio>=.90&&st.midRatio>=.90&&
+          st.mean<150&&contrast>=24&&
+          (next.midRatio<=st.midRatio-.10||next.darkRatio<=st.darkRatio-.10);
+        const value=attachedResidual?p+sign:p;
+        return {applied:true,value,depth:d-1,firstContent:st,
+          attachedResidual,attachedResidualLine:attachedResidual?p:null,
+          nextContent:next,contrast:+contrast.toFixed(2),outerStat};
+      }
+      lastFrame=p;
+    }
+    return {applied:false,reason:'solid-band-limit',value:Math.round(z.inner),lastFrame,outerStat};
+  };
+  for(const s of ['L','R','T','B'])sides[s]=endpoint(s);
+  if(!['L','R','T','B'].every(s=>sides[s].applied))return false;
+  const L=sides.L.value,R=sides.R.value,T=sides.T.value,B=sides.B.value;
+  if(R-L+1<20||B-T+1<20)return false;
+  q.inner={x:L,y:T,w:R-L+1,h:B-T+1};
+  for(const s of ['L','R','T','B']){
+    q.sides[s].inner=sides[s].value;
+    q.sides[s].thickness=Math.abs(q.sides[s].value-q.sides[s].outer);
+  }
+  q.physicalEndpointOwnerV1127=true;
+  q.physicalEndpointOwnerV1128=true;
+  q.endpointRefineV1127={before,after:{...q.inner},sides,padding:false,resize:false};
+  q.endpointRefineV1128=q.endpointRefineV1127;
+  if(record)__physicalEndpointRefineV1127.push({index,before,after:{...q.inner},sides});
+  return true;
+};
+for(const i of __v907IndicesV1080){
+  __refinePhysicalFrameEndpointV1128(__rawFrameContractsV554[i],i+1);
+}
+const __publishPhysicalEndpointV1128=()=>({version:'v1128-complete-physical-frame-endpoint',
+  applied:__physicalEndpointRefineV1127.length>0,
+  count:__physicalEndpointRefineV1127.length,rows:__physicalEndpointRefineV1127,
+  normalization:false,padding:false,resize:false});
+window.__PHYSICAL_ENDPOINT_REFINE_V1128__=__publishPhysicalEndpointV1128();
+window.__PHYSICAL_ENDPOINT_REFINE_V1127__=window.__PHYSICAL_ENDPOINT_REFINE_V1128__;
 window.__V907_ORIGINAL_THICKNESS_OWNER_V1080__={
-  applied:__v907OriginalPopulationProvenV1080,
+  applied:__v907OriginalPopulationProvenV1080||__v907SideEndpointConsensusV1126.applied,
   reason:!__v907IndicesV1080.length?'v907-population-not-present':
-    (__v907OriginalPopulationProvenV1080?'balanced-original-source-frame-population':'original-source-frame-population-unbalanced-v491-preserved'),
+    (__v907SideEndpointConsensusV1126.applied?'per-side-source-endpoint-ownership-v1126':
+      (__v907OriginalPopulationProvenV1080?'balanced-original-source-frame-population':'original-source-frame-population-unbalanced-v491-preserved')),
   population:__v907IndicesV1080.length,
+  sideEndpointConsensusV1126:__v907SideEndpointConsensusV1126,
   contracts:__v907IndicesV1080.map(i=>({index:i+1,contract:__rawFrameContractsV554[i]})),
   padding:false,resize:false
 };
@@ -21283,6 +21528,31 @@ const __repairSourceAxesV740=(()=>{
   out.target=target;out.rows=[...rowAxes].map(([row,q])=>({row,T:q.T,B:q.B}));out.cols=[...colAxes].map(([col,q])=>({col,L:q.L,R:q.R}));out.count=out.contracts.size;return out;
 })();
 window.__V740_V549_SOURCE_AXES__={...__repairSourceAxesV740,contracts:[...__repairSourceAxesV740.contracts].map(([index,q])=>({index:index+1,...q}))};
+// V1129 performs local endpoint measurement on detached contracts.  Failed
+// or minority probes therefore cannot alter the evidence used to construct a
+// repeated-frame consensus.  A repeated population permits local ownership
+// only when the same four-side physical test succeeds broadly; otherwise the
+// complete shared source model remains authoritative.
+const __physicalEndpointProbesV1129=__rawFrameContractsV554.map((raw,i)=>{
+  if(!(raw&&raw.outer&&raw.inner&&raw.sides))return null;
+  const q={...raw,outer:{...raw.outer},inner:{...raw.inner},
+    sides:Object.fromEntries(['L','R','T','B'].map(s=>
+      [s,raw.sides[s]?{...raw.sides[s]}:raw.sides[s]]))};
+  return __refinePhysicalFrameEndpointV1128(q,i+1,false)?q:null;
+});
+const __physicalEndpointProofCountV1129=__physicalEndpointProbesV1129.filter(Boolean).length;
+const __physicalEndpointProofRequiredV1129=ordered.length<4?ordered.length:
+  Math.max(3,Math.ceil(ordered.length*.75));
+const __physicalEndpointFamilyProvenV1129=__physicalEndpointProofCountV1129>=
+  __physicalEndpointProofRequiredV1129;
+window.__PHYSICAL_ENDPOINT_ARBITRATION_V1129__={
+  version:'v1129-detached-four-side-endpoint-arbitration',
+  population:ordered.length,proven:__physicalEndpointProofCountV1129,
+  required:__physicalEndpointProofRequiredV1129,
+  localOwnership:__physicalEndpointFamilyProvenV1129,
+  fallback:__physicalEndpointFamilyProvenV1129?null:'repeated-source-consensus',
+  normalization:false,padding:false,resize:false
+};
 const __frameContractsV554=ordered.map((r,i)=>{
   if(r&&r.__rfeeRepeatedContentOwnedV1090){
     const q={x:Math.round(r.x),y:Math.round(r.y),w:Math.round(r.w),h:Math.round(r.h)};
@@ -21621,6 +21891,27 @@ const __frameContractsV554=ordered.map((r,i)=>{
   // 네 변 모두가 격자 다수에서 같은 위상/두께로 증명되지 않으면, 프레임이 없는
   // 패널로 보고 명목 셀을 그대로 보존한다. 이 fallback도 동일 크기 원본 좌표이며
   // padding/resize/개별 tight scan을 사용하지 않는다.
+  // V1127: once the original raster proves the contiguous outer stroke and
+  // its first non-frame line on all four sides, a later pattern model is only
+  // validation.  It cannot replace that cut with a shared inset or a
+  // no-frame fallback merely because artwork touches one side.
+  const __exactPhysicalV1127=__rawFrameContractsV554[i];
+  if(__exactPhysicalV1127&&__exactPhysicalV1127.applied&&
+    __exactPhysicalV1127.v907PerSideEndpointOwnerV1126&&
+    __exactPhysicalV1127.physicalEndpointOwnerV1127&&
+    __exactPhysicalV1127.outer&&__exactPhysicalV1127.inner&&
+    ['L','R','T','B'].every(s=>__exactPhysicalV1127.sides&&
+      __exactPhysicalV1127.sides[s]&&
+      Number.isFinite(__exactPhysicalV1127.sides[s].outer)&&
+      Number.isFinite(__exactPhysicalV1127.sides[s].inner))){
+    return {...__exactPhysicalV1127,
+      version:'v1127-per-cut-physical-endpoint-owner',
+      reason:'independent-source-frame-endpoints-v1127',
+      perCutSourceBoundaryOwnerV1126:true,
+      sourceMeasurement:__exactPhysicalV1127,
+      perFrameBoundaryV681:true,framePatternOwnerV686:false,
+      sharedSourceConsensusV694:false,padding:false,resize:false};
+  }
   if(!m.L||!m.R||!m.T||!m.B){
     const latticeRestored=!!(r.__opencvMergedLatticeCellV549||r.__opencvRepeatedEdgeCellV550);
     // V1109 deep measurements are source evidence until all four sides have
@@ -21684,7 +21975,30 @@ const __frameContractsV554=ordered.map((r,i)=>{
     }
   }
   const raw=__rawFrameContractsV554[i]||{};
-  const sharedSourceConsensusV694=!!(!patternV686&&m.L&&m.R&&m.T&&m.B&&['L','R','T','B'].every(s=>m[s].source==='repeated-source-measurements-v693'));
+  // V1129: line darkness and opposite-side thickness balance are evidence,
+  // not final-boundary ownership.  Complete the same source-pixel endpoint
+  // proof used by every common-frame path before arbitration.  A local crop
+  // may outrank the repeated model only when all four physical strokes reach
+  // an independently observed content transition; ambiguous sides remain on
+  // the repeated-source consensus below.
+  const __physicalEndpointV1129=__physicalEndpointProbesV1129[i];
+  const __completePerCutPhysicalEndpointV1129=!!(
+    __physicalEndpointFamilyProvenV1129&&__physicalEndpointV1129&&
+    __physicalEndpointV1129.applied&&
+    __physicalEndpointV1129.reason==='four-source-frame-lines-proven'&&
+    __physicalEndpointV1129.physicalEndpointOwnerV1128&&
+    __physicalEndpointV1129.inner&&__physicalEndpointV1129.outer&&
+    __physicalEndpointV1129.inner.w>=r.w*.70&&
+    __physicalEndpointV1129.inner.h>=r.h*.62);
+  if(__completePerCutPhysicalEndpointV1129){
+    return {...__physicalEndpointV1129,version:'v1129-per-cut-physical-endpoint-owner',
+      reason:'independent-four-side-physical-endpoints-v1129',
+      sourceMeasurement:raw,perFrameBoundaryV681:true,
+      perCutSourceBoundaryOwnerV1126:true,framePatternOwnerV686:false,
+      sharedSourceConsensusV694:false,padding:false,resize:false};
+  }
+  const sharedSourceConsensusV694=!!(!patternV686&&m.L&&m.R&&m.T&&m.B&&
+    ['L','R','T','B'].every(s=>m[s].source==='repeated-source-measurements-v693'));
   // V684: restore the stable V617 contract. Per-cut scans are evidence used
   // to prove the repeated frame model; they are not final crop boundaries.
   // Treating a local scan as a boundary lets picture ink masquerade as a
@@ -21823,7 +22137,9 @@ const __rfeeCommonSourceFrameV819=(()=>{
     const q=__frameContractsV554[i],r=ordered[i];
     q.applied=true;q.reason='rfee-common-source-frame-canonical-v819';q.outer={...c.outer};q.inner={...c.inner};
     q.sides={L:{outer:c.outer.x,inner:c.inner.x,thickness:thickness.L},R:{outer:c.outer.x+c.outer.w-1,inner:c.inner.x+c.inner.w-1,thickness:thickness.R},T:{outer:c.outer.y,inner:c.inner.y,thickness:thickness.T},B:{outer:c.outer.y+c.outer.h-1,inner:c.inner.y+c.inner.h-1,thickness:thickness.B}};
-    q.rfeeCommonSourceFrameV819=true;q.padding=false;q.resize=false;r.__rfeeCommonSourceFrameV819=true;
+    q.rfeeCommonSourceFrameV819=true;q.padding=false;q.resize=false;
+    __refinePhysicalFrameEndpointV1128(q,i+1);
+    r.__rfeeCommonSourceFrameV819=true;
   });
   return {...out,applied:true,reason:'unanimous-outer-plus-repeated-thin-frame',outer:{w:mw[0],h:mh[0]},thickness,support,cleanFour,sideRatio,target,candidates};
 })();
@@ -21912,6 +22228,10 @@ const __opencvRepeatedCommonFrameV947=(()=>{
       B:{outer:c.outer.y+c.outer.h-1,inner:c.inner.y+c.inner.h-1,thickness:thickness.B}
     };
     q.opencvRepeatedCommonFrameV947=true;q.padding=false;q.resize=false;
+    // V1128: V947 may prove that the sheet shares one outer frame model, but
+    // it must not make the inner endpoints common. Each source cell finishes
+    // its own physical stroke measurement before the contract becomes final.
+    __refinePhysicalFrameEndpointV1128(q,i+1);
     r.__opencvRepeatedCommonFrameV947=true;
   });
   return {...out,applied:true,reason:'unanimous-occupied-outer-plus-repeated-thin-frame',physicalCount:physicalIndices.length,backgroundCount:ordered.length-physicalIndices.length,outer:{w:mw[0],h:mh[0]},thickness,support,cleanFour,sideRatio,target,candidates};
@@ -23048,10 +23368,14 @@ const __fastCommonFrameContractV783=(()=>{
       else transitionShiftCountV1011++;
     }
   });
-  candidates.forEach((c,i)=>{const q=__frameContractsV554[i],r=ordered[i];q.inner={...c.inner};q.outer={...c.outer};q.sides={L:{outer:c.outer.x,inner:c.inner.x,thickness:th.L},R:{outer:c.outer.x+c.outer.w-1,inner:c.inner.x+c.inner.w-1,thickness:th.R},T:{outer:c.outer.y,inner:c.inner.y,thickness:th.T},B:{outer:c.outer.y+c.outer.h-1,inner:c.inner.y+c.inner.h-1,thickness:th.B}};q.fastCommonFrameCanonicalV783=true;q.fastBoundaryAuthorityV1011=c.boundaryAuthorityV1011;q.reason='fast-common-source-frame-canonical-v783';q.pixelAuditV783=c.sideAudit;r.__fastCommonFrameCanonicalV783=true;});
+  candidates.forEach((c,i)=>{const q=__frameContractsV554[i],r=ordered[i];q.inner={...c.inner};q.outer={...c.outer};q.sides={L:{outer:c.outer.x,inner:c.inner.x,thickness:th.L},R:{outer:c.outer.x+c.outer.w-1,inner:c.inner.x+c.inner.w-1,thickness:th.R},T:{outer:c.outer.y,inner:c.inner.y,thickness:th.T},B:{outer:c.outer.y+c.outer.h-1,inner:c.inner.y+c.inner.h-1,thickness:th.B}};q.fastCommonFrameCanonicalV783=true;q.fastBoundaryAuthorityV1011=c.boundaryAuthorityV1011;q.reason='fast-common-source-frame-canonical-v783';q.pixelAuditV783=c.sideAudit;__refinePhysicalFrameEndpointV1128(q,i+1);r.__fastCommonFrameCanonicalV783=true;});
   return {...out,applied:true,reason:'source-outer-minus-common-thickness-proven',outer:{w:mw[0],h:mh[0]},thickness:th,target:{w:mw[0]-th.L-th.R,h:mh[0]-th.T-th.B},pixelRatio,perSide,boundaryShiftCountV1011,pureFrameShiftCountV1011,transitionShiftCountV1011,candidates};
 })();
 window.__FAST_COMMON_FRAME_CONTRACT_V783__=__fastCommonFrameContractV783;
+// V819, V947 and V783 may append per-cut endpoint measurements after the
+// initial V907 pass; publish the completed diagnostic snapshot here.
+window.__PHYSICAL_ENDPOINT_REFINE_V1128__=__publishPhysicalEndpointV1128();
+window.__PHYSICAL_ENDPOINT_REFINE_V1127__=window.__PHYSICAL_ENDPOINT_REFINE_V1128__;
 
 // V812: a shared label is evidence, not coordinate ownership.  Promote a
 // sheet-wide inner boundary only when every cell belongs to one actual source
@@ -23942,6 +24266,9 @@ const __actualFrameCropOwnerV694=!!(!r.__opencvV883RectifiedBoundary&&__actualFr
   __actualFrameV554.opencvRepeatedCommonFrameV947||
   __actualFrameV554.rfeeValidatedCommonFrameV915||
   __actualFrameV554.gridPerFrameMeasuredOwnerV838||
+  __actualFrameV554.perCutSourceBoundaryOwnerV1126||
+  __actualFrameV554.v907PerSideEndpointOwnerV1126||
+  __actualFrameV554.physicalEndpointOwnerV1127||
   // V812: an ordinary shared consensus owns coordinates only after the whole
   // sheet has proved one outer/inner geometry, one phase and one 4-side model.
   (__actualFrameV554.sharedSourceConsensusV694&&__sheetGeometryConvergenceV812.applied)||
@@ -23979,7 +24306,11 @@ if(cropMode==='tight'&&__sharedSourceEndpointV1121){
     matched:__sourceMatrixEndpointV1121.matched,
     sideRanges:__sourceMatrixEndpointV1121.sideRanges,
     padding:false,resize:false};
-} else if(__dualBoundaryValidV1114&&(cropMode==='tight'||cropMode==='frame')){
+} else if(__dualBoundaryValidV1114&&
+  !(__actualFrameV554&&(
+    __actualFrameV554.perCutSourceBoundaryOwnerV1126||
+    __actualFrameV554.v907PerSideEndpointOwnerV1126))&&
+  (cropMode==='tight'||cropMode==='frame')){
   const q=cropMode==='tight'
     ?__dualInnerV1114
     :{x:r.x,y:r.y,w:r.w,h:r.h};
@@ -25636,7 +25967,10 @@ const __sourceOwnedPrimaryFrameEndpointV1117=!!(
 // V470: V467의 검정 separator 사이 영역은 이미 원본 셀의 정확한 좌표다.
 // 공통 1~2px 잔여선 cleaner가 그림 자체의 어두운 가장자리를 프레임으로 오인해
 // 셀마다 다른 크기로 다시 자르지 못하도록 여기서도 완전히 제외한다.
-if(cropMode === 'tight' && !__sharedSourceEndpointV1121 && w > 30 && h > 30 && !r.__framelessGutterSourceOwnedV919 && (!r.__opencvProtectionV551||r.__opencvBackgroundIslandV887||__sourceOwnedPrimaryFrameEndpointV1117) && (!r.__sourceLatticeExactV489||__sourceOwnedPrimaryFrameEndpointV1117) && !r.__darkGutterLatticeV467 && !r.__palePencilLatticeV472 && !r.__explicitPencilGridV480){
+if(cropMode === 'tight' && !(__actualFrameV554&&(
+    __actualFrameV554.perCutSourceBoundaryOwnerV1126||
+    __actualFrameV554.physicalEndpointOwnerV1127)) &&
+  !__sharedSourceEndpointV1121 && w > 30 && h > 30 && !r.__framelessGutterSourceOwnedV919 && (!r.__opencvProtectionV551||r.__opencvBackgroundIslandV887||__sourceOwnedPrimaryFrameEndpointV1117) && (!r.__sourceLatticeExactV489||__sourceOwnedPrimaryFrameEndpointV1117) && !r.__darkGutterLatticeV467 && !r.__palePencilLatticeV472 && !r.__explicitPencilGridV480){
   let trimL=0,trimR=0,trimT=0,trimB=0;
 
   function __grayFromDataV317(d, ww, xx, yy){
@@ -27459,6 +27793,15 @@ function __v667StructuralCoordinateSizeContract(){
   const seeds=new Map(),loose=[];
   for(const t of traces){
     const r=ordered[Number.isInteger(t.orderedIdx)?t.orderedIdx:t.idx],lg=r&&r.__layoutGroupV452,ek=r&&exactKey(r);
+    const __frameContractV1126=__frameContractsV554[Number.isInteger(t.orderedIdx)?t.orderedIdx:t.idx];
+    // A complete per-cut physical boundary is already the most specific
+    // coordinate evidence.  V667 may validate it but may not cluster or
+    // replace its 1px (or larger) legitimate size difference.
+    if((t.frameBoundaryOwnerV681&&
+      t.frameBoundaryOwnerV681.reason==='independent-four-side-physical-boundary-v1126')||
+      (__frameContractV1126&&(
+        __frameContractV1126.perCutSourceBoundaryOwnerV1126||
+        __frameContractV1126.v907PerSideEndpointOwnerV1126)))continue;
     // V783 already owns the exact source rectangle.  V667 is validation-only
     // for this class and must not shrink the proven clean inner boundary.
   if(r&&(r.__fastCommonFrameCanonicalV783||r.__repeatedFrameMajorityCanonicalV888||
@@ -30079,5 +30422,26 @@ const GA4_MEASUREMENT_ID = "G-VBF511BR7D";
 })();
 </script>
 
+<script id="dpconti-tools-menu-script">
+(function(){
+  'use strict';
+  var button=document.getElementById('dpcToolsButton');
+  var backdrop=document.getElementById('dpcToolsBackdrop');
+  var panel=document.getElementById('dpcToolsPanel');
+  if(!button||!backdrop||!panel) return;
+  function closeMenu(){
+    document.body.classList.remove('dpc-tools-open');
+    button.setAttribute('aria-expanded','false');
+  }
+  button.addEventListener('click',function(){
+    var open=document.body.classList.toggle('dpc-tools-open');
+    button.setAttribute('aria-expanded',open?'true':'false');
+  });
+  backdrop.addEventListener('click',closeMenu);
+  document.addEventListener('keydown',function(event){
+    if(event.key==='Escape') closeMenu();
+  });
+})();
+</script>
 </body>
 </html>
