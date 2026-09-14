@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- BUILD V1131: tools menu restored; transfer first-paint guard. -->
 <!-- V1129: Per-cut endpoint probes run on detached contracts, so an ambiguous
      local scan cannot contaminate the repeated-frame model. Independent crop
      ownership requires the same four-side physical-transition proof across a
@@ -1553,9 +1554,68 @@ h1,h2,h3,p{margin-block-start:0;}
   display:none!important;
 }
 </style>
+<style id="dpconti-tools-menu">
+.dpc-tools-menu,
+.dpc-tools-menu *{box-sizing:border-box}
+#dpcToolsButton.dpc-tools-button{
+  position:fixed;left:10px;top:20px;z-index:1000001;
+  width:32px!important;min-width:32px!important;height:32px!important;min-height:32px!important;
+  margin:0!important;padding:0!important;border:0!important;border-radius:0!important;
+  background:transparent!important;display:flex!important;align-items:center!important;justify-content:center!important;
+  cursor:pointer!important;opacity:.82;box-shadow:none!important;outline:0!important;
+  -webkit-appearance:none!important;appearance:none!important;-webkit-tap-highlight-color:transparent!important
+}
+#dpcToolsButton.dpc-tools-button:hover,
+#dpcToolsButton.dpc-tools-button:active,
+#dpcToolsButton.dpc-tools-button:focus,
+#dpcToolsButton.dpc-tools-button:focus-visible{
+  width:32px!important;min-width:32px!important;height:32px!important;min-height:32px!important;
+  padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;
+  box-shadow:none!important;outline:0!important
+}
+#dpcToolsButton.dpc-tools-button:hover{opacity:1}
+#dpcToolsButton.dpc-tools-button:active{opacity:.65}
+#dpcToolsButton .dpc-tools-button-lines{
+  display:block!important;position:relative!important;width:22px!important;min-width:22px!important;
+  height:16px!important;min-height:16px!important;padding:0!important;border:0!important;border-radius:0!important;
+  background:linear-gradient(#666,#666) 0 0/22px 2px no-repeat,
+    linear-gradient(#666,#666) 0 7px/22px 2px no-repeat,
+    linear-gradient(#666,#666) 0 14px/22px 2px no-repeat!important;
+  box-shadow:none!important;transform:none!important
+}
+#dpcToolsButton .dpc-tools-button-lines::before,
+#dpcToolsButton .dpc-tools-button-lines::after{display:none!important;content:none!important}
+.dpc-tools-backdrop{position:fixed;inset:0;z-index:999999;display:none;background:rgba(0,0,0,.18)}
+.dpc-tools-panel{
+  position:fixed;left:8px;top:50px;z-index:1000000;display:none;width:min(250px,calc(100vw - 16px));
+  padding:8px;border:1px solid #d2d2d2;border-radius:14px;background:#fff;box-shadow:0 8px 28px rgba(0,0,0,.18)
+}
+body.dpc-tools-open .dpc-tools-backdrop,
+body.dpc-tools-open .dpc-tools-panel{display:block}
+.dpc-tools-title{padding:8px 10px 6px;color:#777;font-size:13px;font-weight:700;letter-spacing:.2px}
+.dpc-tools-link{
+  width:100%;height:42px;padding:0 12px;border:0!important;border-radius:10px!important;background:transparent!important;
+  color:#111!important;display:flex;align-items:center;justify-content:space-between;gap:10px;text-align:left;
+  font-size:15px!important;font-weight:700!important;line-height:1;text-decoration:none!important;box-shadow:none!important
+}
+.dpc-tools-link:hover{background:#f1f5f9!important}
+.dpc-tools-link.is-active{background:#eaf3ff!important;color:#0b64c0!important}
+.dpc-tools-divider{height:1px;margin:8px 4px;background:#e5e5e5}
+</style>
 </head>
 
 <body>
+<div class="dpc-tools-menu">
+  <button id="dpcToolsButton" class="dpc-tools-button" type="button" aria-label="메뉴 열기" aria-controls="dpcToolsPanel" aria-expanded="false"><span class="dpc-tools-button-lines"></span></button>
+  <div id="dpcToolsBackdrop" class="dpc-tools-backdrop"></div>
+  <nav id="dpcToolsPanel" class="dpc-tools-panel" aria-label="DPCONTI 도구 메뉴">
+    <div class="dpc-tools-title">DPCONTI TOOLS</div>
+    <a class="dpc-tools-link is-active" href="https://cut.entercredit.kr" aria-current="page">CUT <span>›</span></a>
+    <a class="dpc-tools-link" href="https://sheet.entercredit.kr">SHEET <span>›</span></a>
+    <div class="dpc-tools-divider"></div>
+    <a class="dpc-tools-link" href="https://dpconti.com" target="_blank" rel="noopener noreferrer">홈페이지 <span>↗</span></a>
+  </nav>
+</div>
 <!-- STRICT BUILD: V287 engine body preserved. HERO LOGO TEST 08: option spacing stabilized. -->
 
 <div class="brand-logo" aria-label="G CUT">
@@ -1566,8 +1626,8 @@ h1,h2,h3,p{margin-block-start:0;}
 <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
 <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;"><input type="file" id="file" accept="image/*" multiple hidden><button id="pickBtn">파일 선택</button><button id="sampleBtn" type="button">샘플 불러오기</button></div>
 <div class="dpc-app-transfer-actions" aria-label="CUT 실행 및 SHEET 연동">
-<button id="cutToSheetBtn" class="dpc-app-transfer-target" type="button" aria-label="현재 CUT 결과를 SHEET에 추가">SHEET</button>
-<span class="dpc-app-transfer-arrow" aria-hidden="true">←</span>
+<button id="cutToSheetBtn" class="dpc-app-transfer-target" type="button" aria-label="현재 CUT 결과를 SHEET에 추가" style="display:none">SHEET</button>
+<span class="dpc-app-transfer-arrow" aria-hidden="true" style="display:none">←</span>
 <button id="run" disabled>CUT</button>
 </div>
 </div>
@@ -30399,6 +30459,25 @@ const GA4_MEASUREMENT_ID = "G-VBF511BR7D";
 })();
 </script>
 
+<script id="dpconti-tools-menu-script">
+(function(){
+  'use strict';
+  var button=document.getElementById('dpcToolsButton');
+  var backdrop=document.getElementById('dpcToolsBackdrop');
+  var panel=document.getElementById('dpcToolsPanel');
+  if(!button||!backdrop||!panel) return;
+  function closeMenu(){
+    document.body.classList.remove('dpc-tools-open');
+    button.setAttribute('aria-expanded','false');
+  }
+  button.addEventListener('click',function(){
+    var open=document.body.classList.toggle('dpc-tools-open');
+    button.setAttribute('aria-expanded',open?'true':'false');
+  });
+  backdrop.addEventListener('click',closeMenu);
+  document.addEventListener('keydown',function(event){if(event.key==='Escape') closeMenu();});
+})();
+</script>
 <style id="dpc-cut-sheet-transfer-style-v1">
 .dpc-app-transfer-actions{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex:0 0 auto;white-space:nowrap}
 .dpc-app-transfer-target,.dpc-app-transfer-arrow{display:none!important}
