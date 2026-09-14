@@ -1553,86 +1553,9 @@ h1,h2,h3,p{margin-block-start:0;}
   display:none!important;
 }
 </style>
-<style id="dpconti-tools-menu">
-.dpc-tools-menu,
-.dpc-tools-menu *{box-sizing:border-box}
-#dpcToolsButton.dpc-tools-button{
-  position:fixed;left:10px;top:20px;z-index:1000001;
-  width:32px!important;min-width:32px!important;
-  height:32px!important;min-height:32px!important;
-  margin:0!important;padding:0!important;border:0!important;
-  border-radius:0!important;background:transparent!important;
-  display:flex!important;align-items:center!important;justify-content:center!important;
-  cursor:pointer!important;opacity:.82;box-shadow:none!important;outline:0!important;
-  -webkit-appearance:none!important;appearance:none!important;
-  -webkit-tap-highlight-color:transparent!important
-}
-#dpcToolsButton.dpc-tools-button:hover,
-#dpcToolsButton.dpc-tools-button:active,
-#dpcToolsButton.dpc-tools-button:focus,
-#dpcToolsButton.dpc-tools-button:focus-visible{
-  width:32px!important;min-width:32px!important;
-  height:32px!important;min-height:32px!important;
-  padding:0!important;border:0!important;border-radius:0!important;
-  background:transparent!important;box-shadow:none!important;outline:0!important
-}
-#dpcToolsButton.dpc-tools-button:hover{opacity:1}
-#dpcToolsButton.dpc-tools-button:active{opacity:.65}
-#dpcToolsButton .dpc-tools-button-lines{
-  display:block!important;position:relative!important;
-  width:22px!important;min-width:22px!important;
-  height:16px!important;min-height:16px!important;
-  padding:0!important;border:0!important;border-radius:0!important;
-  background:
-    linear-gradient(#666,#666) 0 0/22px 2px no-repeat,
-    linear-gradient(#666,#666) 0 7px/22px 2px no-repeat,
-    linear-gradient(#666,#666) 0 14px/22px 2px no-repeat!important;
-  box-shadow:none!important;transform:none!important
-}
-#dpcToolsButton .dpc-tools-button-lines::before,
-#dpcToolsButton .dpc-tools-button-lines::after{display:none!important;content:none!important}
-.dpc-tools-backdrop{
-  position:fixed;inset:0;z-index:999999;display:none;
-  background:rgba(0,0,0,.18)
-}
-.dpc-tools-panel{
-  position:fixed;left:8px;top:50px;z-index:1000000;
-  display:none;width:min(250px,calc(100vw - 16px));
-  padding:8px;border:1px solid #d2d2d2;border-radius:14px;
-  background:#fff;box-shadow:0 8px 28px rgba(0,0,0,.18)
-}
-body.dpc-tools-open .dpc-tools-backdrop,
-body.dpc-tools-open .dpc-tools-panel{display:block}
-.dpc-tools-title{
-  padding:8px 10px 6px;color:#777;font-size:13px;
-  font-weight:700;letter-spacing:.2px
-}
-.dpc-tools-link{
-  width:100%;height:42px;padding:0 12px;border:0!important;
-  border-radius:10px!important;background:transparent!important;
-  color:#111!important;display:flex;align-items:center;
-  justify-content:space-between;gap:10px;text-align:left;
-  font-size:15px!important;font-weight:700!important;
-  line-height:1;text-decoration:none!important;box-shadow:none!important
-}
-.dpc-tools-link:hover{background:#f1f5f9!important}
-.dpc-tools-link.is-active{background:#eaf3ff!important;color:#0b64c0!important}
-.dpc-tools-divider{height:1px;margin:8px 4px;background:#e5e5e5}
-</style>
 </head>
 
 <body>
-<div class="dpc-tools-menu">
-  <button id="dpcToolsButton" class="dpc-tools-button" type="button" aria-label="메뉴 열기" aria-controls="dpcToolsPanel" aria-expanded="false"><span class="dpc-tools-button-lines"></span></button>
-  <div id="dpcToolsBackdrop" class="dpc-tools-backdrop"></div>
-  <nav id="dpcToolsPanel" class="dpc-tools-panel" aria-label="DPCONTI 도구 메뉴">
-    <div class="dpc-tools-title">DPCONTI TOOLS</div>
-    <a class="dpc-tools-link is-active" href="https://cut.entercredit.kr" aria-current="page">CUT <span>›</span></a>
-    <a class="dpc-tools-link" href="https://sheet.entercredit.kr">SHEET <span>›</span></a>
-    <div class="dpc-tools-divider"></div>
-    <a class="dpc-tools-link" href="https://dpconti.com" target="_blank" rel="noopener noreferrer">홈페이지 <span>↗</span></a>
-  </nav>
-</div>
 <!-- STRICT BUILD: V287 engine body preserved. HERO LOGO TEST 08: option spacing stabilized. -->
 
 <div class="brand-logo" aria-label="G CUT">
@@ -1642,7 +1565,11 @@ body.dpc-tools-open .dpc-tools-panel{display:block}
 <div class="panel">
 <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
 <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;"><input type="file" id="file" accept="image/*" multiple hidden><button id="pickBtn">파일 선택</button><button id="sampleBtn" type="button">샘플 불러오기</button></div>
-<div><button id="run" disabled>CUT</button></div>
+<div class="dpc-app-transfer-actions" aria-label="CUT 실행 및 SHEET 연동">
+<button id="cutToSheetBtn" class="dpc-app-transfer-target" type="button" aria-label="현재 CUT 결과를 SHEET에 추가">SHEET</button>
+<span class="dpc-app-transfer-arrow" aria-hidden="true">←</span>
+<button id="run" disabled>CUT</button>
+</div>
 </div>
 <div style="margin-top:10px;display:flex;gap:8px;">
 <button id="downloadAllBtn">CUT 모두 저장</button>
@@ -5365,13 +5292,47 @@ function __cutCardDownloadNameV482(card,num){
   const n=num||(card&&card.querySelector('.num')&&card.querySelector('.num').textContent)||'001';
   return b+'_'+n+'.png';
 }
-function __bindCutImageDownloadV482(card,img){
+const __cutRestrictedInAppV1130=/(KAKAOTALK|FBAN|FBAV|FB_IAB|Instagram)/i.test(navigator.userAgent||'');
+function __cutDataUrlBlobV1130(dataUrl){
+  const parts=String(dataUrl||'').split(',');
+  const type=((parts[0]||'').match(/data:([^;]+)/)||[])[1]||'image/png';
+  const raw=atob(parts[1]||'');
+  const bytes=new Uint8Array(raw.length);
+  for(let i=0;i<raw.length;i++) bytes[i]=raw.charCodeAt(i);
+  return new Blob([bytes],{type});
+}
+async function __cutShareFilesV1130(blobs,names,title){
+  if(!navigator.share || typeof File==='undefined') return false;
+  const files=blobs.map((blob,index)=>new File([blob],names[index],{type:blob.type||'application/octet-stream'}));
+  try{
+    if(navigator.canShare && !navigator.canShare({files})) return false;
+    await navigator.share({files,title:title||'CUT 저장'});
+    return true;
+  }catch(error){
+    if(error && error.name==='AbortError') return true;
+    console.warn('인앱 파일 공유 실패',error);
+    return false;
+  }
+}
+async function __cutSaveOneV1130(dataUrl,name){
+  if(__cutRestrictedInAppV1130){
+    const blob=__cutDataUrlBlobV1130(dataUrl);
+    if(await __cutShareFilesV1130([blob],[name],name)) return;
+    let opened=null;
+    try{ opened=window.open(dataUrl,'_blank'); }catch(_error){}
+    if(!opened){ try{ window.location.href=dataUrl; }catch(_error){} }
+    alert('인앱 브라우저가 다운로드를 막아 이미지 원본을 열었습니다. 이미지를 길게 눌러 저장하거나 메뉴에서 Chrome으로 열어 주세요.');
+    return;
+  }
+  const a=document.createElement('a');
+  a.href=dataUrl;
+  a.download=name;
+  a.click();
+}
+async function __bindCutImageDownloadV482(card,img){
   if(!card||!img)return;
-  img.onclick=()=>{
-    const a=document.createElement('a');
-    a.href=img.src;
-    a.download=__cutCardDownloadNameV482(card);
-    a.click();
+  img.onclick=async()=>{
+    await __cutSaveOneV1130(img.src,__cutCardDownloadNameV482(card));
   };
 }
 
@@ -28688,6 +28649,17 @@ if (cards.length === 0) {
 alert('먼저 컷을 추출하세요.');
 return;
 }
+if(__cutRestrictedInAppV1130){
+  const names=cards.map(card=>__cutCardDownloadNameV482(card,card.querySelector('.num').textContent));
+  const blobs=cards.map(card=>__cutDataUrlBlobV1130(card.querySelector('img').src));
+  if(await __cutShareFilesV1130(blobs,names,'CUT 모두 저장')) return;
+  const zip=new JSZip();
+  blobs.forEach((blob,index)=>zip.file(names[index],blob));
+  const zipBlob=await zip.generateAsync({type:'blob'});
+  if(await __cutShareFilesV1130([zipBlob],[baseName+'_cuts.zip'],'CUT 압축파일 저장')) return;
+  alert('이 인앱 브라우저는 여러 파일 저장을 지원하지 않습니다. 우측 상단 메뉴에서 Chrome으로 연 뒤 다시 저장해 주세요.');
+  return;
+}
 for (let i = 0; i < cards.length; i++) {
 const num = cards[i].querySelector('.num').textContent;
 const img = cards[i].querySelector('img').src;
@@ -28718,6 +28690,11 @@ data,
 });
 
 const blob = await zip.generateAsync({ type: 'blob' });
+if(__cutRestrictedInAppV1130){
+  if(await __cutShareFilesV1130([blob],[baseName+'_cuts.zip'],'CUT 압축파일 저장')) return;
+  alert('이 인앱 브라우저는 압축파일 저장을 지원하지 않습니다. 우측 상단 메뉴에서 Chrome으로 연 뒤 다시 저장해 주세요.');
+  return;
+}
 const a = document.createElement('a');
 a.href = URL.createObjectURL(blob);
 a.download = baseName + '_cuts.zip';
@@ -30422,25 +30399,136 @@ const GA4_MEASUREMENT_ID = "G-VBF511BR7D";
 })();
 </script>
 
-<script id="dpconti-tools-menu-script">
+<style id="dpc-cut-sheet-transfer-style-v1">
+.dpc-app-transfer-actions{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex:0 0 auto;white-space:nowrap}
+.dpc-app-transfer-target,.dpc-app-transfer-arrow{display:none!important}
+body.__cut_completed:not(.__cut_processing):not(.__cut_auto_sample_running) .dpc-app-transfer-target{display:inline-flex!important}
+body.__cut_completed:not(.__cut_processing):not(.__cut_auto_sample_running) .dpc-app-transfer-arrow{display:inline-flex!important}
+.dpc-app-transfer-target{
+  min-width:82px!important;height:var(--dp-polish-btn-h,42px)!important;padding:0 12px!important;
+  align-items:center!important;justify-content:center!important;border:1px solid #d2d2d2!important;
+  border-radius:var(--dp-polish-btn-r,8px)!important;background:#fff!important;color:#222!important;
+  font:700 16px/1 'Noto Sans KR',sans-serif!important;box-shadow:none!important
+}
+.dpc-app-transfer-target:hover,.dpc-app-transfer-target:focus{background:#f3f3f3!important;border-color:#c6c6c6!important;color:#222!important}
+.dpc-app-transfer-target:active{background:#e7e7e7!important}
+.dpc-app-transfer-target[disabled]{opacity:.58!important;cursor:wait!important}
+.dpc-app-transfer-arrow{align-items:center;justify-content:center;color:#9a9a9a;font-size:17px;line-height:1;pointer-events:none}
+.dpc-transfer-status{
+  position:fixed;top:14px;left:50%;z-index:99999;transform:translateX(-50%);padding:9px 13px;
+  border:1px solid #d8d8d8;border-radius:9px;background:rgba(255,255,255,.97);color:#222;
+  box-shadow:0 5px 18px rgba(0,0,0,.12);font:600 13px/1.35 'Noto Sans KR',sans-serif;white-space:nowrap
+}
+@media(max-width:430px){
+  .dpc-app-transfer-actions{gap:6px}
+  .dpc-app-transfer-target{min-width:82px!important;height:var(--dp-polish-btn-h,38px)!important;padding:0 10px!important;font-size:16px!important}
+  .dpc-app-transfer-arrow{font-size:16px}
+}
+</style>
+<script id="dpc-cut-sheet-transfer-v1">
 (function(){
-  'use strict';
-  var button=document.getElementById('dpcToolsButton');
-  var backdrop=document.getElementById('dpcToolsBackdrop');
-  var panel=document.getElementById('dpcToolsPanel');
-  if(!button||!backdrop||!panel) return;
-  function closeMenu(){
-    document.body.classList.remove('dpc-tools-open');
-    button.setAttribute('aria-expanded','false');
+'use strict';
+var PROTOCOL='DPC_APP_TRANSFER_V1';
+var CUT_ORIGIN='https://cut.entercredit.kr';
+var SHEET_ORIGIN='https://sheet.entercredit.kr';
+var incoming=new Map();
+
+function status(text){
+  var el=document.getElementById('dpcTransferStatus');
+  if(!text){if(el)el.remove();return;}
+  if(!el){el=document.createElement('div');el.id='dpcTransferStatus';el.className='dpc-transfer-status';document.body.appendChild(el);}
+  el.textContent=text;
+}
+function uid(){return (window.crypto&&window.crypto.randomUUID)?window.crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2);}
+function waitFor(test,timeout){return new Promise(function(resolve,reject){var start=Date.now();(function poll(){if(test())return resolve();if(Date.now()-start>timeout)return reject(new Error('timeout'));setTimeout(poll,80);})();});}
+function imageBlob(src){return fetch(src).then(function(r){if(!r.ok)throw new Error('image-read-failed');return r.blob();});}
+async function collectCutFiles(){
+  var cards=Array.from(document.querySelectorAll('#results .card'));
+  var out=[];
+  for(var i=0;i<cards.length;i++){
+    var img=cards[i].querySelector('img');
+    if(!img||!img.src)continue;
+    var num=(cards[i].querySelector('.num')||{}).textContent||String(i+1);
+    var name=(typeof window.__cutCardDownloadNameV482==='function')?window.__cutCardDownloadNameV482(cards[i],num):((window.baseName||'cut')+'_'+String(i+1).padStart(3,'0')+'.png');
+    out.push({name:name,blob:await imageBlob(img.src)});
   }
-  button.addEventListener('click',function(){
-    var open=document.body.classList.toggle('dpc-tools-open');
-    button.setAttribute('aria-expanded',open?'true':'false');
+  return out;
+}
+async function sendFiles(targetRole,records,button,target,transferId){
+  if(!records.length){try{target.close();}catch(_e){}alert('먼저 컷을 추출하세요.');return;}
+  var targetOrigin=targetRole==='sheet'?SHEET_ORIGIN:CUT_ORIGIN;
+  if(!target){alert('새 탭 열기가 차단되었습니다. 팝업을 허용한 뒤 다시 시도해 주세요.');return;}
+  var ready=false,done=false,failed='';
+  function receive(event){
+    if(event.origin!==targetOrigin||event.source!==target||!event.data||event.data.protocol!==PROTOCOL||event.data.id!==transferId)return;
+    if(event.data.type==='READY')ready=true;
+    if(event.data.type==='ACK'){done=true;failed=event.data.error||'';}
+  }
+  window.addEventListener('message',receive);
+  var ping=setInterval(function(){try{target.postMessage({protocol:PROTOCOL,type:'PING',id:transferId,from:'cut'},targetOrigin);}catch(_e){}},220);
+  try{
+    await waitFor(function(){return ready;},15000);
+    clearInterval(ping);
+    target.postMessage({protocol:PROTOCOL,type:'BEGIN',id:transferId,from:'cut',total:records.length},targetOrigin);
+    for(var start=0;start<records.length;start+=8){
+      var chunk=records.slice(start,start+8);
+      var items=[];
+      for(var j=0;j<chunk.length;j++)items.push({name:chunk[j].name,type:chunk[j].blob.type||'image/png',buffer:await chunk[j].blob.arrayBuffer()});
+      target.postMessage({protocol:PROTOCOL,type:'BATCH',id:transferId,from:'cut',items:items},targetOrigin,items.map(function(v){return v.buffer;}));
+    }
+    target.postMessage({protocol:PROTOCOL,type:'END',id:transferId,from:'cut'},targetOrigin);
+    await waitFor(function(){return done;},60000);
+    if(failed)throw new Error(failed);
+    try{target.focus();}catch(_e){}
+  }finally{
+    clearInterval(ping);window.removeEventListener('message',receive);
+    if(button){button.disabled=false;button.textContent='SHEET';}
+  }
+}
+async function ingestCut(files){
+  var input=document.getElementById('file');
+  if(!input)throw new Error('CUT 파일 입력을 찾을 수 없습니다.');
+  if(typeof DataTransfer==='function'){
+    var dt=new DataTransfer();files.forEach(function(file){dt.items.add(file);});
+    input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+  }else if(typeof input.onchange==='function'){
+    input.onchange({target:{files:files}});
+  }else{
+    throw new Error('이 브라우저는 파일 전달을 지원하지 않습니다.');
+  }
+  if(window.__SOURCE_PREVIEW_READY_PROMISE__)await Promise.resolve(window.__SOURCE_PREVIEW_READY_PROMISE__);
+}
+window.addEventListener('message',async function(event){
+  if(event.origin!==SHEET_ORIGIN||!event.data||event.data.protocol!==PROTOCOL)return;
+  var data=event.data;
+  if(data.type==='PING'){event.source.postMessage({protocol:PROTOCOL,type:'READY',id:data.id},event.origin);return;}
+  if(data.type==='BEGIN'){
+    incoming.set(data.id,{source:event.source,origin:event.origin,total:Number(data.total)||0,files:[]});
+    status('SHEET에서 가져오는 중… 0/'+(Number(data.total)||0));return;
+  }
+  var job=incoming.get(data.id);if(!job||job.source!==event.source)return;
+  if(data.type==='BATCH'){
+    (data.items||[]).forEach(function(item){job.files.push(new File([item.buffer],item.name||'sheet.png',{type:item.type||'image/png'}));});
+    status('SHEET에서 가져오는 중… '+job.files.length+'/'+job.total);return;
+  }
+  if(data.type==='END'){
+    try{await ingestCut(job.files);event.source.postMessage({protocol:PROTOCOL,type:'ACK',id:data.id},event.origin);status('SHEET 시트를 CUT에 추가했습니다.');setTimeout(function(){status('');},1400);}
+    catch(error){event.source.postMessage({protocol:PROTOCOL,type:'ACK',id:data.id,error:String(error&&error.message||error)},event.origin);status('가져오기에 실패했습니다.');setTimeout(function(){status('');},2200);}
+    incoming.delete(data.id);
+  }
+});
+function bind(){
+  var btn=document.getElementById('cutToSheetBtn');if(!btn||btn.__dpcBound)return;btn.__dpcBound=true;
+  btn.addEventListener('click',async function(){
+    if(btn.disabled)return;btn.disabled=true;btn.textContent='…';
+    var transferId=uid();
+    var target=window.open(SHEET_ORIGIN+'/#dpc-transfer='+encodeURIComponent(transferId)+'&from=cut','dpc_sheet_receiver');
+    if(!target){alert('새 탭 열기가 차단되었습니다. 팝업을 허용한 뒤 다시 시도해 주세요.');btn.disabled=false;btn.textContent='SHEET';return;}
+    try{var files=await collectCutFiles();await sendFiles('sheet',files,btn,target,transferId);}
+    catch(error){console.error(error);alert('SHEET 전송에 실패했습니다. 다시 시도해 주세요.');btn.disabled=false;btn.textContent='SHEET';}
   });
-  backdrop.addEventListener('click',closeMenu);
-  document.addEventListener('keydown',function(event){
-    if(event.key==='Escape') closeMenu();
-  });
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind);else bind();
 })();
 </script>
 </body>
