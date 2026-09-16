@@ -5471,12 +5471,66 @@ function __detectDarkPanelImageRectsV446(grayMat, imageWidth, imageHeight){
   finally{for(let i=mats.length-1;i>=0;i--)try{mats[i].delete();}catch(_e){}}
 }
 
+if(!window.DpcInAppSave){
+(function(){
+  'use strict';
+  var ua=String(navigator.userAgent||'');
+  var mobile=/Android|iPhone|iPad|iPod/i.test(ua);
+  var refHost='';
+  try{refHost=new URL(document.referrer||'').hostname.toLowerCase();}catch(_error){}
+  var uaRestricted=/(KAKAOTALK|FBAN|FBAV|FB_IAB|FB4A|FBIOS|FBBV|FBMD|FBSN|FBSS|FBCR|FBID|FBLC|FBOP|Messenger|Instagram)/i.test(ua)
+    ||(/Android/i.test(ua)&&(/;\s*wv\)/i.test(ua)||/\bVersion\/4\.0\b.*\bChrome\//i.test(ua)))
+    ||(/iPhone|iPad|iPod/i.test(ua)&&!/Safari\//i.test(ua)&&!/(CriOS|FxiOS|EdgiOS|OPiOS)/i.test(ua));
+  var refRestricted=mobile&&/(^|\.)(facebook\.com|messenger\.com|instagram\.com)$/.test(refHost);
+  var restricted=uaRestricted||refRestricted;
+  var app=/KAKAOTALK/i.test(ua)?'카카오톡':/(Instagram)/i.test(ua)||/(^|\.)instagram\.com$/.test(refHost)?'Instagram':/(FBAN|FBAV|FB_IAB|FB4A|FBIOS|FBBV|FBMD|FBSN|FBSS|FBCR|FBID|FBLC|FBOP|Messenger|Facebook)/i.test(ua)||/(^|\.)(facebook|messenger)\.com$/.test(refHost)?'Facebook':'인앱 브라우저';
+  var activeUrls=[];
+  function ensureUi(){
+    var root=document.getElementById('dpcInAppSaveDialog');
+    if(root)return root;
+    var style=document.createElement('style');
+    style.textContent='#dpcInAppSaveDialog{position:fixed;inset:0;z-index:2147483647;display:none;align-items:center;justify-content:center;padding:22px;background:rgba(0,0,0,.52);font-family:"Noto Sans KR",Arial,sans-serif}#dpcInAppSaveDialog.is-open{display:flex}#dpcInAppSaveDialog .dpc-save-box{width:min(420px,100%);box-sizing:border-box;padding:22px 20px 18px;border-radius:18px;background:#fff;color:#111;box-shadow:0 18px 55px rgba(0,0,0,.28)}#dpcInAppSaveDialog .dpc-save-title{margin:0 0 10px;font-size:19px;font-weight:800;line-height:1.4}#dpcInAppSaveDialog .dpc-save-message{margin:0;white-space:pre-line;font-size:15px;font-weight:500;line-height:1.6;color:#3c3c3c}#dpcInAppSaveDialog .dpc-save-actions{display:flex;gap:8px;margin-top:18px}#dpcInAppSaveDialog button{min-width:0;min-height:44px;flex:1;margin:0;padding:10px 12px;border:1px solid #d7d7d7;border-radius:10px;background:#f3f3f3;color:#222;font:700 15px/1.2 "Noto Sans KR",Arial,sans-serif}#dpcInAppSaveDialog button.dpc-save-primary{border-color:#168de2;background:#168de2;color:#fff}#dpcInAppSaveDialog button:active{transform:none;filter:brightness(.96)}@media(max-width:420px){#dpcInAppSaveDialog{padding:18px}#dpcInAppSaveDialog .dpc-save-box{padding:20px 16px 16px}#dpcInAppSaveDialog .dpc-save-actions{flex-direction:column-reverse}#dpcInAppSaveDialog button{width:100%}}';
+    document.head.appendChild(style);
+    root=document.createElement('div');root.id='dpcInAppSaveDialog';root.setAttribute('role','dialog');root.setAttribute('aria-modal','true');
+    root.innerHTML='<div class="dpc-save-box"><h2 class="dpc-save-title"></h2><p class="dpc-save-message"></p><div class="dpc-save-actions"><button type="button" class="dpc-save-cancel">닫기</button><button type="button" class="dpc-save-secondary"></button><button type="button" class="dpc-save-primary"></button></div></div>';
+    document.body.appendChild(root);return root;
+  }
+  function close(root){root.classList.remove('is-open');}
+  function chromeUrl(){
+    var here=location.href;
+    if(/Android/i.test(ua)){var scheme=(location.protocol||'https:').replace(':','');return 'intent://'+location.host+location.pathname+location.search+location.hash+'#Intent;scheme='+scheme+';package=com.android.chrome;S.browser_fallback_url='+encodeURIComponent(here)+';end';}
+    if(/iPhone|iPad|iPod/i.test(ua))return (/^https:/i.test(here)?'googlechromes://':'googlechrome://')+here.replace(/^https?:\/\//i,'');
+    return here;
+  }
+  function openChrome(){try{location.href=chromeUrl();}catch(_error){try{window.open(location.href,'_blank');}catch(_ignore){}}}
+  async function share(blobs,names,title){
+    if(!navigator.share||typeof File==='undefined')return false;
+    var files=blobs.map(function(blob,index){return new File([blob],names[index],{type:blob.type||'application/octet-stream'});});
+    try{if(navigator.canShare&&!navigator.canShare({files:files}))return false;await navigator.share({files:files,title:title||names[0]||'파일 저장'});return true;}
+    catch(error){if(error&&error.name==='AbortError')return true;console.warn('[DPC_INAPP_SHARE]',error);return false;}
+  }
+  function present(options){
+    options=options||{};var blobs=options.blobs||[];var names=options.names||[];var root=ensureUi();
+    var title=root.querySelector('.dpc-save-title'),message=root.querySelector('.dpc-save-message'),cancel=root.querySelector('.dpc-save-cancel'),secondary=root.querySelector('.dpc-save-secondary'),primary=root.querySelector('.dpc-save-primary');
+    activeUrls.forEach(function(url){try{URL.revokeObjectURL(url);}catch(_error){}});activeUrls=[];
+    title.textContent=app+'에서는 파일 저장이 제한됩니다';
+    message.textContent=options.message||(options.image?'원본 이미지를 연 뒤 길게 눌러 저장하거나, Chrome에서 열어 다시 저장해 주세요.':'현재 생성한 파일을 이 브라우저가 직접 저장하지 못했습니다. Chrome에서 열어 다시 저장해 주세요.');
+    cancel.onclick=function(){close(root);};secondary.style.display='';primary.style.display='';
+    if(options.image&&blobs[0]){var imageUrl=URL.createObjectURL(blobs[0]);activeUrls.push(imageUrl);primary.textContent='이미지 열기';primary.onclick=function(){var opened=null;try{opened=window.open(imageUrl,'_blank');}catch(_error){}if(!opened){try{location.href=imageUrl;}catch(_ignore){}}};secondary.textContent='Chrome에서 열기';secondary.onclick=openChrome;}
+    else if(navigator.share&&blobs.length){primary.textContent='공유로 저장';primary.onclick=async function(){primary.disabled=true;var ok=await share(blobs,names,options.title);primary.disabled=false;if(ok)close(root);};secondary.textContent='Chrome에서 열기';secondary.onclick=openChrome;}
+    else{primary.textContent='Chrome에서 열기';primary.onclick=openChrome;secondary.style.display='none';}
+    root.classList.add('is-open');setTimeout(function(){try{primary.focus({preventScroll:true});}catch(_error){primary.focus();}},0);
+  }
+  window.DpcInAppSave={restricted:restricted,app:app,share:share,present:present,openChrome:openChrome};
+})();
+}
+
 function __cutCardDownloadNameV482(card,num){
   const b=(card&&card.dataset&&card.dataset.downloadBaseV482)||baseName||'image';
   const n=num||(card&&card.querySelector('.num')&&card.querySelector('.num').textContent)||'001';
   return b+'_'+n+'.png';
 }
-const __cutRestrictedInAppV1130=/(KAKAOTALK|FBAN|FBAV|FB_IAB|Instagram)/i.test(navigator.userAgent||'');
+const __cutRestrictedInAppV1130=!!(window.DpcInAppSave&&window.DpcInAppSave.restricted);
 function __cutDataUrlBlobV1130(dataUrl){
   const parts=String(dataUrl||'').split(',');
   const type=((parts[0]||'').match(/data:([^;]+)/)||[])[1]||'image/png';
@@ -5502,10 +5556,7 @@ async function __cutSaveOneV1130(dataUrl,name){
   if(__cutRestrictedInAppV1130){
     const blob=__cutDataUrlBlobV1130(dataUrl);
     if(await __cutShareFilesV1130([blob],[name],name)) return;
-    let opened=null;
-    try{ opened=window.open(dataUrl,'_blank'); }catch(_error){}
-    if(!opened){ try{ window.location.href=dataUrl; }catch(_error){} }
-    alert('인앱 브라우저가 다운로드를 막아 이미지 원본을 열었습니다. 이미지를 길게 눌러 저장하거나 메뉴에서 Chrome으로 열어 주세요.');
+    window.DpcInAppSave.present({blobs:[blob],names:[name],title:name,image:true});
     return;
   }
   const a=document.createElement('a');
@@ -29133,7 +29184,7 @@ if(__cutRestrictedInAppV1130){
   blobs.forEach((blob,index)=>zip.file(names[index],blob));
   const zipBlob=await zip.generateAsync({type:'blob'});
   if(await __cutShareFilesV1130([zipBlob],[baseName+'_cuts.zip'],'CUT 압축파일 저장')) return;
-  alert('이 인앱 브라우저는 여러 파일 저장을 지원하지 않습니다. 우측 상단 메뉴에서 Chrome으로 연 뒤 다시 저장해 주세요.');
+  window.DpcInAppSave.present({blobs:[zipBlob],names:[baseName+'_cuts.zip'],title:'CUT 압축파일 저장'});
   return;
 }
 for (let i = 0; i < cards.length; i++) {
@@ -29168,7 +29219,7 @@ data,
 const blob = await zip.generateAsync({ type: 'blob' });
 if(__cutRestrictedInAppV1130){
   if(await __cutShareFilesV1130([blob],[baseName+'_cuts.zip'],'CUT 압축파일 저장')) return;
-  alert('이 인앱 브라우저는 압축파일 저장을 지원하지 않습니다. 우측 상단 메뉴에서 Chrome으로 연 뒤 다시 저장해 주세요.');
+  window.DpcInAppSave.present({blobs:[blob],names:[baseName+'_cuts.zip'],title:'CUT 압축파일 저장'});
   return;
 }
 const a = document.createElement('a');
