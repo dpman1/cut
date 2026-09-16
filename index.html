@@ -1,5 +1,7 @@
 <!DOCTYPE html>
 <!-- BUILD V1133: preserve native engine identity for mixed-height ownership. -->
+<!-- BUILD V1138: source-proven V491 frame coordinates own matched cells even
+     when artwork contours contain additional cells. -->
 <!-- BUILD V1136 VERIFIED: 42-cut mixed-sheet and uniform thick-frame contracts
      validated independently across AUTO, OpenCV, and GRID. -->
 <!-- BUILD V1135: keep uniform grids on their established thick-frame contract. -->
@@ -227,7 +229,7 @@ V1109: Repeated closed frames may use a deep solid matte on one axis
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Frame CUT V1136 VERIFIED | 콘티·스토리보드 자동 분할 도구</title>
+<title>Frame CUT V1138 COMPLETE SOURCE FRAME OWNER | 콘티·스토리보드 자동 분할 도구</title>
 <meta name="description" content="콘티, 스토리보드 시트 이미지에서 프레임을 검출해 컷별로 자동 분할합니다.">
 <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
 <link rel="canonical" href="https://cut.entercredit.kr/">
@@ -1758,7 +1760,7 @@ body.dpc-tools-open .dpc-tools-panel{display:block}
 <canvas id="work" style="display:none"></canvas>
 
 <script>
-window.__FRAME_CUT_BUILD__='V1136_VERIFIED_42CUT_FRAME_FIX';
+window.__FRAME_CUT_BUILD__='V1138_COMPLETE_SOURCE_FRAME_OWNER_FIX';
 let sourceImage = null;
 let sourceImages = [];
 let sourceFiles = [];
@@ -8873,15 +8875,6 @@ const __reconcileOpenCvWithV491FinalPopulationV907=(src,graph)=>{
     __classifyIndependentDirectFramesV1134(graph,sourceImage);
   out.independentMixedHeightV1132=independentMixedHeightV1132;
   const graphMayOwnWithoutContourSupportV1132=!!independentMixedHeightV1132.applied;
-  if(!repeatedSourcePopulation||
-     (before.length<2&&!graphMayOwnWithoutContourSupportV1132)||
-     (populationDelta<0&&!graphMayOwnWithoutContourSupportV1132)){
-    out.reason=!graph||!graph.applied?'v491-not-applied':
-      !repeatedSourcePopulation?'v491-source-population-not-repeated':
-      populationDelta<0?'v491-source-population-smaller-than-opencv':
-      'too-few-opencv-candidates';
-    return {boxes:before,debug:out};
-  }
   const overlapMin=(a,b)=>{
     const x0=Math.max(a.x,b.x),y0=Math.max(a.y,b.y);
     const x1=Math.min(a.x+a.w,b.x+b.w),y1=Math.min(a.y+a.h,b.y+b.h);
@@ -8894,6 +8887,55 @@ const __reconcileOpenCvWithV491FinalPopulationV907=(src,graph)=>{
     return ['L','R','T','B'].every(s=>Number(si[s])>=1)&&
       Math.min(...cov)>=.56&&cov.reduce((a,b)=>a+b,0)>=2.65;
   };
+  // V1137: V491 can prove a strict subset of a non-rectangular sheet while
+  // ordinary artwork contours correctly retain additional cells.  Population
+  // replacement would delete those extra cells, but discarding V491 entirely
+  // also discards the exact outer/inner frame coordinates it measured.  Pair
+  // every source-proven V491 rectangle to one distinct existing contour and
+  // transfer coordinate evidence only.  Count, ordering and all unmatched
+  // contours remain owned by the selected engine.
+  if(repeatedSourcePopulation&&frames.length>=4&&frames.length<before.length&&
+     frames.every(sourceFrameProven)){
+    const boxes=before.map(r=>({...r})),usedBefore=new Set(),pairs=[];
+    let complete=true;
+    for(let fi=0;fi<frames.length;fi++){
+      let best=-1,bestOverlap=0,bestDistance=Infinity;
+      const f=frames[fi],fcx=f.x+f.w/2,fcy=f.y+f.h/2;
+      for(let bi=0;bi<before.length;bi++){
+        if(usedBefore.has(bi))continue;
+        const b=before[bi],ov=overlapMin(f,b);
+        const d=Math.hypot((b.x+b.w/2)-fcx,(b.y+b.h/2)-fcy);
+        if(ov>bestOverlap+1e-6||(Math.abs(ov-bestOverlap)<=1e-6&&d<bestDistance)){
+          best=bi;bestOverlap=ov;bestDistance=d;
+        }
+      }
+      if(best<0||bestOverlap<.78){complete=false;break;}
+      usedBefore.add(best);
+      const si=f.__sourceFrameInsetsV489;
+      boxes[best]={...boxes[best],
+        __opencvV491MatchedSubsetV1137:true,
+        __v491SubsetFrameV1137:{
+          outer:{x:Math.round(f.x),y:Math.round(f.y),w:Math.round(f.w),h:Math.round(f.h)},
+          insets:{L:Math.round(si.L),R:Math.round(si.R),T:Math.round(si.T),B:Math.round(si.B)}
+        }};
+      pairs.push({opencv:best,v491:fi,overlap:+bestOverlap.toFixed(3)});
+    }
+    if(complete&&pairs.length===frames.length){
+      Object.assign(out,{reason:'partial-v491-source-frame-coordinate-transfer-v1137',
+        coordinateMetadataApplied:true,subsetMatched:pairs.length,
+        afterCount:boxes.length,pairs,padding:false,resize:false});
+      return {boxes,debug:out};
+    }
+  }
+  if(!repeatedSourcePopulation||
+     (before.length<2&&!graphMayOwnWithoutContourSupportV1132)||
+     (populationDelta<0&&!graphMayOwnWithoutContourSupportV1132)){
+    out.reason=!graph||!graph.applied?'v491-not-applied':
+      !repeatedSourcePopulation?'v491-source-population-not-repeated':
+      populationDelta<0?'v491-source-population-smaller-than-opencv':
+      'too-few-opencv-candidates';
+    return {boxes:before,debug:out};
+  }
   const used=new Set(),pairs=[];
   // Ordinary V907 still requires every OpenCV contour to match the source
   // frame set one-to-one. The V1132 family is different: V491 is itself the
@@ -8967,7 +9009,9 @@ const __opencvV491PopulationV907=(__v831CoordinateOwnerV1056.applied&&
       beforeCount:cvBoxes.length,afterCount:cvBoxes.length,
       v831Owner:{...__v831CoordinateOwnerV1056},padding:false,resize:false}}
   :__reconcileOpenCvWithV491FinalPopulationV907(cvBoxes,__sharedLocalClosedV854);
-if((engineMode==='auto'||engineMode==='opencv')&&__opencvV491PopulationV907.debug.applied){
+if((engineMode==='auto'||engineMode==='opencv')&&
+   (__opencvV491PopulationV907.debug.applied||
+    __opencvV491PopulationV907.debug.coordinateMetadataApplied)){
   cvBoxes=__opencvV491PopulationV907.boxes;
 }
 window.__OPENCV_V491_FINAL_POPULATION_OWNER_V907__=__opencvV491PopulationV907.debug;
@@ -20825,9 +20869,12 @@ ordered.forEach(r=>{const q=r&&r.__independentSourceRectV836;if(!q)return;r.x=q.
 const __mixedMeasuredGridV839=/^(rfee(?:-|$)|blockgrid(?:-|$)|dark-gutter-lattice$|explicit-pencil-frame-grid$|source-vertical-run-lattice-v488$)/.test(String(chosenEngine||'').toLowerCase())&&ordered.some(r=>r&&r.__independentClosedFrameV836);
 const __opencvRepeatedFrameEvidenceV947=[];
 const __v907StoredV491FrameContractV1080=r=>{
-  if(!(r&&r.__opencvV491FinalPopulationOwnerV907&&r.__sourceFrameInsetsV489))return null;
-  const si=r.__sourceFrameInsetsV489;
-  const outer={x:Math.round(r.x),y:Math.round(r.y),w:Math.round(r.w),h:Math.round(r.h)};
+  if(!r)return null;
+  const subset=r.__opencvV491MatchedSubsetV1137&&r.__v491SubsetFrameV1137;
+  if(!(subset||(r.__opencvV491FinalPopulationOwnerV907&&r.__sourceFrameInsetsV489)))return null;
+  const si=subset?subset.insets:r.__sourceFrameInsetsV489;
+  const oq=subset?subset.outer:r;
+  const outer={x:Math.round(oq.x),y:Math.round(oq.y),w:Math.round(oq.w),h:Math.round(oq.h)};
   const inset={L:Math.round(Number(si.L)||0),R:Math.round(Number(si.R)||0),T:Math.round(Number(si.T)||0),B:Math.round(Number(si.B)||0)};
   const inner={x:outer.x+inset.L,y:outer.y+inset.T,w:outer.w-inset.L-inset.R,h:outer.h-inset.T-inset.B};
   if(inner.w<20||inner.h<20||['L','R','T','B'].some(s=>inset[s]<1))return null;
@@ -20840,11 +20887,106 @@ const __v907StoredV491FrameContractV1080=r=>{
       T:{outer:outer.y,inner:inner.y,thickness:inset.T},
       B:{outer:outer.y+outer.h-1,inner:inner.y+inner.h-1,thickness:inset.B}
     },
-    v491FinalPopulationOwnerV907:true,v491FallbackV1080:true,
+    v491FinalPopulationOwnerV907:!!r.__opencvV491FinalPopulationOwnerV907,
+    v491MatchedSubsetV1137:!!subset,v491FallbackV1080:true,
     padding:false,resize:false
   };
 };
-const __rawFrameContractsV554=ordered.map(r=>{
+// V1137 terminal coordinate handoff.  Some non-rectangular sheets expose a
+// complete direct V491 sub-grid plus additional valid OpenCV cells.  Preserve
+// all OpenCV cells, but let the exact source-frame rectangle own only the
+// distinct cells it overlaps.  This is coordinate evidence, not population
+// completion, normalization, padding or a filename/count exception.
+const __v491SubsetEvidenceV1137=(()=>{
+  const out=new Array(ordered.length).fill(null),g=__sharedLocalClosedV854;
+  const frames=(g&&Array.isArray(g.rects)?g.rects:[]).filter(Boolean);
+  const ownerDebug=__opencvV491PopulationV907&&__opencvV491PopulationV907.debug;
+  const partialTransfer=!!(ownerDebug&&ownerDebug.coordinateMetadataApplied);
+  // V1138: a complete V907 population is the stronger form of the same
+  // source-coordinate proof.  V1137 excluded it here because the V907 flags
+  // were expected to survive every later population arbitration.  Some valid
+  // OpenCV paths rebuild the ordered rectangles, however, and the late
+  // full-resolution scanner can then mistake dark artwork for a 30-60px
+  // frame.  Its safety fallback consequently publishes the untouched outer
+  // rectangle for only those cells.  Re-establish the already-proven V491
+  // outer+inner contract by one-to-one source overlap, exactly as the partial
+  // population path does.  This changes neither count nor ordering and adds
+  // no inferred cell, shared thickness, normalization, padding or resize.
+  const completeTransfer=!!(ownerDebug&&ownerDebug.applied&&
+    ownerDebug.frameCoordinateOwner==='v491-complete-source-frame-population'&&
+    frames.length===ordered.length&&Number(ownerDebug.afterCount)===ordered.length);
+  if(!/^opencv(?:-|$)/.test(String(chosenEngine||'').toLowerCase())||
+     !(g&&g.applied&&g.image&&g.image.w===sourceImage.width&&g.image.h===sourceImage.height)||
+     frames.length<4||frames.length>ordered.length||
+     (frames.length===ordered.length&&!partialTransfer&&!completeTransfer))return out;
+  const proven=frames.every(r=>{
+    const si=r.__sourceFrameInsetsV489||{};
+    const cov=['L','R','T','B'].map(s=>Number(r.cov&&r.cov[s])||0);
+    return !r.__virtualOccupiedCellV668&&!r.__virtualOpenCvImageBoundsV670&&
+      ['L','R','T','B'].every(s=>Number(si[s])>=1)&&
+      Math.min(...cov)>=.78&&cov.reduce((a,b)=>a+b,0)>=3.52;
+  });
+  if(!proven)return out;
+  const overlap=(a,b)=>{
+    const x0=Math.max(a.x,b.x),y0=Math.max(a.y,b.y);
+    const x1=Math.min(a.x+a.w,b.x+b.w),y1=Math.min(a.y+a.h,b.y+b.h);
+    return Math.max(0,x1-x0)*Math.max(0,y1-y0)/Math.max(1,Math.min(a.w*a.h,b.w*b.h));
+  };
+  const used=new Set(),pending=[];
+  for(const f of frames){
+    let best=-1,bestOverlap=0,bestDistance=Infinity;
+    const fcx=f.x+f.w/2,fcy=f.y+f.h/2;
+    for(let i=0;i<ordered.length;i++){
+      if(used.has(i))continue;
+      const r=ordered[i],ov=overlap(f,r);
+      const d=Math.hypot((r.x+r.w/2)-fcx,(r.y+r.h/2)-fcy);
+      if(ov>bestOverlap+1e-6||(Math.abs(ov-bestOverlap)<=1e-6&&d<bestDistance)){
+        best=i;bestOverlap=ov;bestDistance=d;
+      }
+    }
+    if(best<0||bestOverlap<.78)return new Array(ordered.length).fill(null);
+    used.add(best);
+    pending.push({index:best,outer:{x:Math.round(f.x),y:Math.round(f.y),w:Math.round(f.w),h:Math.round(f.h)},
+      insets:{...f.__sourceFrameInsetsV489},overlap:+bestOverlap.toFixed(3),
+      completeTransfer});
+  }
+  for(const q of pending)out[q.index]=q;
+  // A partial direct sub-grid also establishes the physical outer-size and
+  // stroke family.  Extend that contract only to unmatched contours that are
+  // still outer-sized on both axes and share an observed row or column phase.
+  // Already frame-free artwork rectangles are smaller by the measured inset
+  // sum and can never enter this branch.
+  if(partialTransfer&&pending.length>=4){
+    const med=a=>{const s=a.filter(Number.isFinite).slice().sort((x,y)=>x-y);return s[Math.floor(s.length/2)];};
+    const mw=med(frames.map(f=>f.w)),mh=med(frames.map(f=>f.h));
+    const inset=Object.fromEntries(['L','R','T','B'].map(s=>[s,Math.round(med(frames.map(f=>Number(f.__sourceFrameInsetsV489&&f.__sourceFrameInsetsV489[s]))))]));
+    const tolW=Math.max(3,Math.round(mw*.025)),tolH=Math.max(3,Math.round(mh*.025));
+    const phaseX=Math.max(3,Math.round(mw*.025)),phaseY=Math.max(3,Math.round(mh*.025));
+    for(let i=0;i<ordered.length;i++){
+      if(out[i]||used.has(i))continue;
+      const r=ordered[i];
+      const outerSized=Math.abs(r.w-mw)<=tolW&&Math.abs(r.h-mh)<=tolH;
+      const phaseAligned=frames.some(f=>Math.abs(r.x-f.x)<=phaseX||Math.abs(r.y-f.y)<=phaseY);
+      if(!outerSized||!phaseAligned)continue;
+      out[i]={index:i,outer:{x:Math.round(r.x),y:Math.round(r.y),w:Math.round(r.w),h:Math.round(r.h)},
+        insets:{...inset},overlap:null,phaseExtended:true};
+    }
+  }
+  return out;
+})();
+const __rawFrameContractsV554=ordered.map((r,__orderedIndexV1137)=>{
+  const __subsetV1137=__v491SubsetEvidenceV1137[__orderedIndexV1137];
+  // A partial population has no later family-wide thickness contract, so its
+  // matched source coordinate remains the immediate owner.  A complete
+  // population first keeps the established full-resolution measurement; its
+  // V491 coordinate is the fallback only if that measurement explicitly
+  // rejects itself as artwork-sensitive below.
+  if(__subsetV1137&&!__subsetV1137.completeTransfer){
+    return __v907StoredV491FrameContractV1080({
+      ...r,__opencvV491MatchedSubsetV1137:true,
+      __v491SubsetFrameV1137:__subsetV1137
+    });
+  }
   // V1090: the strict common frameless classification owns the existing RFEE
   // rectangle.  Keep the coordinate and record a zero-thickness contract;
   // do not reinterpret artwork at its edge as a physical frame.
@@ -20933,6 +21075,18 @@ const __rawFrameContractsV554=ordered.map(r=>{
   const q=__measureOpenCvActualFrameContractV554(anchor);
   if(q)q.measureAnchorV688=o?'source-observed-v187-fallback':'nominal-cell-fallback';
   return q;
+});
+// V1137: subset coordinates are already the original-pixel outer rectangle
+// plus four measured source insets.  They outrank the later artwork-sensitive
+// remeasurement for those matched cells only; unmatched engine cells retain
+// the established path unchanged.
+const __v491SubsetIndicesV1137=[];
+ordered.forEach((r,i)=>{
+  if(!(r&&r.__opencvV491MatchedSubsetV1137))return;
+  const q=__v907StoredV491FrameContractV1080(r);
+  if(!q)return;
+  __rawFrameContractsV554[i]=q;
+  __v491SubsetIndicesV1137.push(i);
 });
 // V1080 atomic V907 thickness ownership.  Original-pixel measurements own the
 // population only when every member proves all four sides, each opposite pair
@@ -22186,6 +22340,26 @@ const __frameContractsV554=ordered.map((r,i)=>{
         return z&&z.deepSolidBandV1109&&z.deepSolidBandV1109.applied;
       }));
     if(deepSolidEvidenceOnlyV1109&&!latticeRestored){
+      // V1138: the full-resolution scan has now reached its explicit reject
+      // state: a deep dark run exists, but the repeated pattern cannot prove
+      // four safe endpoints.  If the same cell belongs to a complete,
+      // one-to-one V491 population with four directly measured source sides,
+      // retain that physical frame proof instead of publishing the untouched
+      // outer box.  Each cell uses only its own outer and inset; successful
+      // full-resolution measurements on its peers are not changed.
+      const evidence=__v491SubsetEvidenceV1137[i];
+      if(evidence&&evidence.completeTransfer){
+        const fallback=__v907StoredV491FrameContractV1080({
+          ...r,__opencvV491MatchedSubsetV1137:true,
+          __v491SubsetFrameV1137:evidence
+        });
+        if(fallback)return {...fallback,
+          version:'v1138-rejected-deep-scan-source-frame-fallback',
+          reason:'source-proven-frame-after-artwork-sensitive-scan-rejected-v1138',
+          completeSourceFrameFallbackV1138:true,
+          rejectedMeasurementV1138:__rawFrameContractsV554[i],
+          sourceMeasurement:__rawFrameContractsV554[i],padding:false,resize:false};
+      }
       const q={x:Math.round(r.x),y:Math.round(r.y),w:Math.round(r.w),h:Math.round(r.h)};
       return {version:'v1109-deep-solid-matte-evidence-only',applied:true,
         reason:'deep-solid-matte-awaits-four-side-repeated-consensus-v1109',
