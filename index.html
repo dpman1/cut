@@ -5478,13 +5478,30 @@ if(!window.DpcInAppSave){
   var mobile=/Android|iPhone|iPad|iPod/i.test(ua);
   var refHost='';
   try{refHost=new URL(document.referrer||'').hostname.toLowerCase();}catch(_error){}
-  var uaRestricted=/(KAKAOTALK|FBAN|FBAV|FB_IAB|FB4A|FBIOS|FBBV|FBMD|FBSN|FBSS|FBCR|FBID|FBLC|FBOP|Messenger|Instagram)/i.test(ua)
-    ||(/Android/i.test(ua)&&(/;\s*wv\)/i.test(ua)||/\bVersion\/4\.0\b.*\bChrome\//i.test(ua)))
-    ||(/iPhone|iPad|iPod/i.test(ua)&&!/Safari\//i.test(ua)&&!/(CriOS|FxiOS|EdgiOS|OPiOS)/i.test(ua));
-  var refRestricted=mobile&&/(^|\.)(facebook\.com|messenger\.com|instagram\.com)$/.test(refHost);
-  var restricted=uaRestricted||refRestricted;
+  /* 실제 기기 테스트에서 이미지·ZIP 저장 실패가 확인된 Facebook/Messenger만 사전 제한한다.
+     카카오·Instagram·일반 WebView는 환경별 차이가 있으므로 저장을 먼저 시도한다. */
+  var uaRestricted=/(FBAN|FBAV|FB_IAB|FB4A|FBIOS|FBBV|FBMD|FBSN|FBSS|FBCR|FBID|FBLC|FBOP|Messenger)/i.test(ua);
+  /* Facebook/Instagram에서 외부 Chrome으로 넘어온 경우에도 referrer는 남을 수 있다.
+     따라서 이전 사이트만으로 저장을 막지 않고, 실제 앱/WebView UA만 제한한다. */
+  var restricted=uaRestricted;
   var app=/KAKAOTALK/i.test(ua)?'카카오톡':/(Instagram)/i.test(ua)||/(^|\.)instagram\.com$/.test(refHost)?'Instagram':/(FBAN|FBAV|FB_IAB|FB4A|FBIOS|FBBV|FBMD|FBSN|FBSS|FBCR|FBID|FBLC|FBOP|Messenger|Facebook)/i.test(ua)||/(^|\.)(facebook|messenger)\.com$/.test(refHost)?'Facebook':'인앱 브라우저';
   var activeUrls=[];
+  var advisoryShown=false;
+  var lastSaveType='unknown';
+  function browserContext(){
+    if(/(FBAN|FBAV|FB_IAB|FB4A|FBIOS|FBBV|FBMD|FBSN|FBSS|FBCR|FBID|FBLC|FBOP|Messenger)/i.test(ua))return 'facebook_inapp';
+    if(/KAKAOTALK/i.test(ua))return 'kakao_inapp';
+    if(/Instagram/i.test(ua))return 'instagram_inapp';
+    if((/Android/i.test(ua)&&(/;\s*wv\)/i.test(ua)||/\bVersion\/4\.0\b.*\bChrome\//i.test(ua)))||(/iPhone|iPad|iPod/i.test(ua)&&!/Safari\//i.test(ua)&&!/(CriOS|FxiOS|EdgiOS|OPiOS)/i.test(ua)))return 'other_webview';
+    return 'browser';
+  }
+  function normalizedSaveType(value){return /^(image|all_images|zip|pptx)$/.test(String(value||''))?String(value):'unknown';}
+  function trackSaveNotice(eventName,saveType){
+    try{
+      if(typeof window.gtag!=='function')return;
+      window.gtag('event',eventName,{tool_name:'cut',browser_context:browserContext(),save_type:normalizedSaveType(saveType)});
+    }catch(_error){}
+  }
   function ensureUi(){
     var root=document.getElementById('dpcInAppSaveDialog');
     if(root)return root;
@@ -5492,7 +5509,7 @@ if(!window.DpcInAppSave){
     style.textContent='#dpcInAppSaveDialog{position:fixed;inset:0;z-index:2147483647;display:none;align-items:center;justify-content:center;padding:22px;background:rgba(0,0,0,.52);font-family:"Noto Sans KR",Arial,sans-serif}#dpcInAppSaveDialog.is-open{display:flex}#dpcInAppSaveDialog .dpc-save-box{width:min(420px,100%);box-sizing:border-box;padding:22px 20px 18px;border-radius:18px;background:#fff;color:#111;box-shadow:0 18px 55px rgba(0,0,0,.28)}#dpcInAppSaveDialog .dpc-save-title{margin:0 0 10px;font-size:19px;font-weight:800;line-height:1.4}#dpcInAppSaveDialog .dpc-save-message{margin:0;white-space:pre-line;font-size:15px;font-weight:500;line-height:1.6;color:#3c3c3c}#dpcInAppSaveDialog .dpc-save-actions{display:flex;gap:8px;margin-top:18px}#dpcInAppSaveDialog button{min-width:0;min-height:44px;flex:1;margin:0;padding:10px 12px;border:1px solid #d7d7d7;border-radius:10px;background:#f3f3f3;color:#222;font:700 15px/1.2 "Noto Sans KR",Arial,sans-serif}#dpcInAppSaveDialog button.dpc-save-primary{border-color:#168de2;background:#168de2;color:#fff}#dpcInAppSaveDialog button:active{transform:none;filter:brightness(.96)}@media(max-width:420px){#dpcInAppSaveDialog{padding:18px}#dpcInAppSaveDialog .dpc-save-box{padding:20px 16px 16px}#dpcInAppSaveDialog .dpc-save-actions{flex-direction:column-reverse}#dpcInAppSaveDialog button{width:100%}}';
     document.head.appendChild(style);
     root=document.createElement('div');root.id='dpcInAppSaveDialog';root.setAttribute('role','dialog');root.setAttribute('aria-modal','true');
-    root.innerHTML='<div class="dpc-save-box"><h2 class="dpc-save-title"></h2><p class="dpc-save-message"></p><div class="dpc-save-actions"><button type="button" class="dpc-save-cancel">닫기</button><button type="button" class="dpc-save-secondary"></button><button type="button" class="dpc-save-primary"></button></div></div>';
+    root.innerHTML='<div class="dpc-save-box"><p class="dpc-save-message"></p><div class="dpc-save-actions"><button type="button" class="dpc-save-primary"></button></div></div>';
     document.body.appendChild(root);return root;
   }
   function close(root){root.classList.remove('is-open');}
@@ -5503,25 +5520,22 @@ if(!window.DpcInAppSave){
     return here;
   }
   function openChrome(){try{location.href=chromeUrl();}catch(_error){try{window.open(location.href,'_blank');}catch(_ignore){}}}
-  async function share(blobs,names,title){
-    if(!navigator.share||typeof File==='undefined')return false;
-    var files=blobs.map(function(blob,index){return new File([blob],names[index],{type:blob.type||'application/octet-stream'});});
-    try{if(navigator.canShare&&!navigator.canShare({files:files}))return false;await navigator.share({files:files,title:title||names[0]||'파일 저장'});return true;}
-    catch(error){if(error&&error.name==='AbortError')return true;console.warn('[DPC_INAPP_SHARE]',error);return false;}
-  }
   function present(options){
-    options=options||{};var blobs=options.blobs||[];var names=options.names||[];var root=ensureUi();
-    var title=root.querySelector('.dpc-save-title'),message=root.querySelector('.dpc-save-message'),cancel=root.querySelector('.dpc-save-cancel'),secondary=root.querySelector('.dpc-save-secondary'),primary=root.querySelector('.dpc-save-primary');
+    options=options||{};lastSaveType=normalizedSaveType(options.saveType||lastSaveType);var root=ensureUi();
+    var message=root.querySelector('.dpc-save-message'),primary=root.querySelector('.dpc-save-primary');
     activeUrls.forEach(function(url){try{URL.revokeObjectURL(url);}catch(_error){}});activeUrls=[];
-    title.textContent=app+'에서는 파일 저장이 제한됩니다';
-    message.textContent=options.message||(options.image?'원본 이미지를 연 뒤 길게 눌러 저장하거나, Chrome에서 열어 다시 저장해 주세요.':'현재 생성한 파일을 이 브라우저가 직접 저장하지 못했습니다. Chrome에서 열어 다시 저장해 주세요.');
-    cancel.onclick=function(){close(root);};secondary.style.display='';primary.style.display='';
-    if(options.image&&blobs[0]){var imageUrl=URL.createObjectURL(blobs[0]);activeUrls.push(imageUrl);primary.textContent='이미지 열기';primary.onclick=function(){var opened=null;try{opened=window.open(imageUrl,'_blank');}catch(_error){}if(!opened){try{location.href=imageUrl;}catch(_ignore){}}};secondary.textContent='Chrome에서 열기';secondary.onclick=openChrome;}
-    else if(navigator.share&&blobs.length){primary.textContent='공유로 저장';primary.onclick=async function(){primary.disabled=true;var ok=await share(blobs,names,options.title);primary.disabled=false;if(ok)close(root);};secondary.textContent='Chrome에서 열기';secondary.onclick=openChrome;}
-    else{primary.textContent='Chrome에서 열기';primary.onclick=openChrome;secondary.style.display='none';}
-    root.classList.add('is-open');setTimeout(function(){try{primary.focus({preventScroll:true});}catch(_error){primary.focus();}},0);
+    message.textContent=options.message||'브라우저에 따라 저장이 제한될 수 있습니다.\nChrome 사용을 권장합니다.';
+    primary.textContent='Chrome 열기';primary.onclick=function(){trackSaveNotice('save_open_chrome',lastSaveType);openChrome();};
+    root.onclick=function(event){if(event.target===root) close(root);};
+    root.classList.add('is-open');if(options.confirmedError)trackSaveNotice('save_error',lastSaveType);trackSaveNotice('save_advisory_shown',lastSaveType);setTimeout(function(){try{primary.focus({preventScroll:true});}catch(_error){primary.focus();}},0);
   }
-  window.DpcInAppSave={restricted:restricted,app:app,share:share,present:present,openChrome:openChrome};
+  function notifyAfterAttempt(saveType){
+    if(!restricted||advisoryShown)return;
+    advisoryShown=true;
+    setTimeout(function(){present({saveType:saveType});},350);
+  }
+  function trackError(saveType){trackSaveNotice('save_error',saveType);}
+  window.DpcInAppSave={restricted:restricted,app:app,present:present,openChrome:openChrome,notifyAfterAttempt:notifyAfterAttempt,trackError:trackError};
 })();
 }
 
@@ -5539,30 +5553,17 @@ function __cutDataUrlBlobV1130(dataUrl){
   for(let i=0;i<raw.length;i++) bytes[i]=raw.charCodeAt(i);
   return new Blob([bytes],{type});
 }
-async function __cutShareFilesV1130(blobs,names,title){
-  if(!navigator.share || typeof File==='undefined') return false;
-  const files=blobs.map((blob,index)=>new File([blob],names[index],{type:blob.type||'application/octet-stream'}));
-  try{
-    if(navigator.canShare && !navigator.canShare({files})) return false;
-    await navigator.share({files,title:title||'CUT 저장'});
-    return true;
-  }catch(error){
-    if(error && error.name==='AbortError') return true;
-    console.warn('인앱 파일 공유 실패',error);
-    return false;
-  }
-}
 async function __cutSaveOneV1130(dataUrl,name){
-  if(__cutRestrictedInAppV1130){
-    const blob=__cutDataUrlBlobV1130(dataUrl);
-    if(await __cutShareFilesV1130([blob],[name],name)) return;
-    window.DpcInAppSave.present({blobs:[blob],names:[name],title:name,image:true});
-    return;
+  try{
+    const a=document.createElement('a');
+    a.href=dataUrl;
+    a.download=name;
+    a.click();
+    if(__cutRestrictedInAppV1130&&window.DpcInAppSave.notifyAfterAttempt)window.DpcInAppSave.notifyAfterAttempt('image');
+  }catch(error){
+    console.error(error);
+    window.DpcInAppSave.present({saveType:'image',confirmedError:true});
   }
-  const a=document.createElement('a');
-  a.href=dataUrl;
-  a.download=name;
-  a.click();
 }
 async function __bindCutImageDownloadV482(card,img){
   if(!card||!img)return;
@@ -29176,25 +29177,20 @@ if (cards.length === 0) {
 alert('먼저 컷을 추출하세요.');
 return;
 }
-if(__cutRestrictedInAppV1130){
-  const names=cards.map(card=>__cutCardDownloadNameV482(card,card.querySelector('.num').textContent));
-  const blobs=cards.map(card=>__cutDataUrlBlobV1130(card.querySelector('img').src));
-  if(await __cutShareFilesV1130(blobs,names,'CUT 모두 저장')) return;
-  const zip=new JSZip();
-  blobs.forEach((blob,index)=>zip.file(names[index],blob));
-  const zipBlob=await zip.generateAsync({type:'blob'});
-  if(await __cutShareFilesV1130([zipBlob],[baseName+'_cuts.zip'],'CUT 압축파일 저장')) return;
-  window.DpcInAppSave.present({blobs:[zipBlob],names:[baseName+'_cuts.zip'],title:'CUT 압축파일 저장'});
-  return;
-}
-for (let i = 0; i < cards.length; i++) {
-const num = cards[i].querySelector('.num').textContent;
-const img = cards[i].querySelector('img').src;
-const a = document.createElement('a');
-a.href = img;
-a.download = __cutCardDownloadNameV482(cards[i],num);
-a.click();
-await new Promise(r => setTimeout(r, 200));
+try{
+  for (let i = 0; i < cards.length; i++) {
+  const num = cards[i].querySelector('.num').textContent;
+  const img = cards[i].querySelector('img').src;
+  const a = document.createElement('a');
+  a.href = img;
+  a.download = __cutCardDownloadNameV482(cards[i],num);
+  a.click();
+  await new Promise(r => setTimeout(r, 200));
+  }
+  if(__cutRestrictedInAppV1130&&window.DpcInAppSave.notifyAfterAttempt)window.DpcInAppSave.notifyAfterAttempt('all_images');
+}catch(error){
+  console.error(error);
+  window.DpcInAppSave.present({saveType:'all_images',confirmedError:true});
 }
 };
 
@@ -29205,27 +29201,29 @@ if (cards.length === 0) {
 alert('먼저 컷을 추출하세요.');
 return;
 }
+try{
+  const zip = new JSZip();
+  cards.forEach((img, i) => {
+  const data = img.src.split(',')[1];
+  zip.file(
+  baseName + '_' + String(i + 1).padStart(3, '0') + '.png',
+  data,
+  { base64: true }
+  );
+  });
 
-const zip = new JSZip();
-cards.forEach((img, i) => {
-const data = img.src.split(',')[1];
-zip.file(
-baseName + '_' + String(i + 1).padStart(3, '0') + '.png',
-data,
-{ base64: true }
-);
-});
-
-const blob = await zip.generateAsync({ type: 'blob' });
-if(__cutRestrictedInAppV1130){
-  if(await __cutShareFilesV1130([blob],[baseName+'_cuts.zip'],'CUT 압축파일 저장')) return;
-  window.DpcInAppSave.present({blobs:[blob],names:[baseName+'_cuts.zip'],title:'CUT 압축파일 저장'});
-  return;
+  const blob = await zip.generateAsync({ type: 'blob' });
+  const url=URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = baseName + '_cuts.zip';
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),30000);
+  if(__cutRestrictedInAppV1130&&window.DpcInAppSave.notifyAfterAttempt)window.DpcInAppSave.notifyAfterAttempt('zip');
+}catch(error){
+  console.error(error);
+  window.DpcInAppSave.present({saveType:'zip',confirmedError:true});
 }
-const a = document.createElement('a');
-a.href = URL.createObjectURL(blob);
-a.download = baseName + '_cuts.zip';
-a.click();
 };
 </script>
 
@@ -30179,11 +30177,12 @@ const GA4_MEASUREMENT_ID = "G-VBF511BR7D";
       try {
         const parameters = sanitizeEvent(eventName, rawParameters);
         if (!parameters) return;
+        const payload = Object.assign({ tool_name: "cut" }, parameters);
 
         if (debugEvents) {
           debugEvents.push(Object.freeze({
             event_name: eventName,
-            parameters: Object.freeze({ ...parameters })
+            parameters: Object.freeze({ ...payload })
           }));
         }
 
@@ -30191,7 +30190,7 @@ const GA4_MEASUREMENT_ID = "G-VBF511BR7D";
         window.setTimeout(() => {
           try {
             if (typeof window.gtag === "function") {
-              window.gtag("event", eventName, parameters);
+              window.gtag("event", eventName, payload);
             }
           } catch (_) {}
         }, 0);
@@ -30230,10 +30229,13 @@ const GA4_MEASUREMENT_ID = "G-VBF511BR7D";
           allow_ad_personalization_signals: false,
           page_location: pageLocation,
           page_referrer: pageReferrer,
-          page_title: pageTitle
+          page_title: pageTitle,
+          content_group: "Frame CUT"
         });
 
         window.gtag("event", "page_view", {
+          tool_name: "cut",
+          content_group: "Frame CUT",
           page_title: pageTitle,
           page_path: pagePath,
           page_location: pageLocation,
@@ -30994,6 +30996,13 @@ function status(text){
 }
 function uid(){return (window.crypto&&window.crypto.randomUUID)?window.crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2);}
 function waitFor(test,timeout){return new Promise(function(resolve,reject){var start=Date.now();(function poll(){if(test())return resolve();if(Date.now()-start>timeout)return reject(new Error('timeout'));setTimeout(poll,80);})();});}
+function trackTransfer(action,count){
+  try{
+    if(typeof window.gtag!=='function')return;
+    var cleanCount=Math.max(0,Math.min(100000,Number(count)||0));
+    setTimeout(function(){try{window.gtag('event','app_transfer_complete',{tool_name:'cut',transfer_action:action,file_count:cleanCount});}catch(_e){}},0);
+  }catch(_e){}
+}
 function imageBlob(src){return fetch(src).then(function(r){if(!r.ok)throw new Error('image-read-failed');return r.blob();});}
 async function collectCutFiles(){
   var cards=Array.from(document.querySelectorAll('#results .card'));
@@ -31030,7 +31039,8 @@ async function sendFiles(targetRole,records,button,target,transferId){
       target.postMessage({protocol:PROTOCOL,type:'BATCH',id:transferId,from:'cut',items:items},targetOrigin,items.map(function(v){return v.buffer;}));
     }
     target.postMessage({protocol:PROTOCOL,type:'END',id:transferId,from:'cut'},targetOrigin);
-    await waitFor(function(){return done;},60000);
+    /* SHEET 수신 측은 가져오기 후 자동 생성까지 끝나야 ACK한다. */
+    await waitFor(function(){return done;},180000);
     if(failed)throw new Error(failed);
     try{target.focus();}catch(_e){}
   }finally{
@@ -31065,7 +31075,7 @@ window.addEventListener('message',async function(event){
     status('SHEET에서 가져오는 중… '+job.files.length+'/'+job.total);return;
   }
   if(data.type==='END'){
-    try{await ingestCut(job.files);event.source.postMessage({protocol:PROTOCOL,type:'ACK',id:data.id},event.origin);status('SHEET 시트를 CUT에 추가했습니다.');setTimeout(function(){status('');},1400);}
+    try{await ingestCut(job.files);trackTransfer('receive_sheet_import',job.files.length);event.source.postMessage({protocol:PROTOCOL,type:'ACK',id:data.id},event.origin);status('SHEET 시트를 CUT에 추가했습니다.');setTimeout(function(){status('');},1400);}
     catch(error){event.source.postMessage({protocol:PROTOCOL,type:'ACK',id:data.id,error:String(error&&error.message||error)},event.origin);status('가져오기에 실패했습니다.');setTimeout(function(){status('');},2200);}
     incoming.delete(data.id);
   }
@@ -31079,7 +31089,7 @@ function bind(){
     var transferId=uid();
     var target=window.open(SHEET_ORIGIN+'/#dpc-transfer='+encodeURIComponent(transferId)+'&from=cut','dpc_sheet_receiver');
     if(!target){alert('새 탭 열기가 차단되었습니다. 팝업을 허용한 뒤 다시 시도해 주세요.');btn.disabled=false;btn.textContent='SHEET';return;}
-    try{var files=await collectCutFiles();await sendFiles('sheet',files,btn,target,transferId);}
+    try{var files=await collectCutFiles();await sendFiles('sheet',files,btn,target,transferId);trackTransfer('send_to_sheet',files.length);}
     catch(error){console.error(error);alert('SHEET 전송에 실패했습니다. 다시 시도해 주세요.');btn.disabled=false;btn.textContent='SHEET';}
   });
 }
