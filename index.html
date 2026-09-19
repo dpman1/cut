@@ -230,7 +230,7 @@ V1109: Repeated closed frames may use a deep solid matte on one axis
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Frame CUT V1139 LOGO TRANSFER BUTTON | 콘티·스토리보드 자동 분할 도구</title>
+<title>Frame CUT V1141 SOURCE FRAME ROUNDTRIP | 콘티·스토리보드 자동 분할 도구</title>
 <meta name="description" content="콘티, 스토리보드 시트 이미지에서 프레임을 검출해 컷별로 자동 분할합니다.">
 <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
 <link rel="canonical" href="https://cut.entercredit.kr/">
@@ -2736,6 +2736,72 @@ function __binaryOpen1DRunsV1026(src,dst,kernelLength,horizontal){
 // V491: 완전 격자를 가정하지 않는 로컬 닫힌-프레임 그래프.
 // 페이지 전체 projection이 아니라 각 contour의 네 변 연결성으로 판단하므로
 // 마지막 행 일부가 비어 있어도 검출할 수 있다. 후보 선택은 각 엔진이 독립 수행한다.
+// Source-native rectangular stroke measurement. Morphological line masks may
+// extend a bound by one pixel or join the frame to picture-edge ink. For a
+// clean, isolated four-sided stroke, the original pixels own both bounds.
+function __measureIsolatedSourceFrames(gray,W,H){
+  const binary=new cv.Mat(), contours=new cv.MatVector(), hierarchy=new cv.Mat();
+  try{
+    cv.threshold(gray,binary,80,255,cv.THRESH_BINARY_INV);
+    cv.findContours(binary,contours,hierarchy,cv.RETR_EXTERNAL,cv.CHAIN_APPROX_SIMPLE);
+    const pixels=gray.data, sides=['L','R','T','B'], frames=[];
+    const profile=(r,side,offset)=>{
+      const horizontal=side==='T'||side==='B', len=horizontal?r.w:r.h;
+      const skip=Math.max(2,Math.ceil(len*.03));let n=0,dark=0,white=0;
+      for(let q=skip;q<len-skip;q++){
+        const x=side==='L'?r.x+offset:side==='R'?r.x+r.w-1-offset:r.x+q;
+        const y=side==='T'?r.y+offset:side==='B'?r.y+r.h-1-offset:r.y+q;
+        if(x<0||y<0||x>=W||y>=H)return null;
+        const v=pixels[y*W+x];n++;if(v<80)dark++;if(v>230)white++;
+      }
+      return {dark:dark/Math.max(1,n),white:white/Math.max(1,n)};
+    };
+    for(let i=0;i<contours.size();i++){
+      const contour=contours.get(i);let r;try{const b=cv.boundingRect(contour);r={x:b.x,y:b.y,w:b.width,h:b.height};}finally{contour.delete();}
+      if(r.w<40||r.h<40||r.w*r.h>W*H*.85||r.x<2||r.y<2||r.x+r.w>W-2||r.y+r.h>H-2)continue;
+      if(!sides.every(side=>profile(r,side,0).dark>=.98&&profile(r,side,-1).white>=.98))continue;
+      const measured={};
+      const cap=Math.min(12,Math.max(2,Math.floor(Math.min(r.w,r.h)*.025)));
+      for(const side of sides){
+        for(let depth=1;depth<=cap;depth++){
+          if(profile(r,side,depth).dark<.995){measured[side]=depth;break;}
+        }
+      }
+      if(Object.keys(measured).length<1)continue;
+      frames.push({...r,measured});
+    }
+    
+    if(frames.length<2)return null;
+    const depths=frames.flatMap(r=>Object.values(r.measured));
+    const frequency=new Map();for(const d of depths)frequency.set(d,(frequency.get(d)||0)+1);
+    const [stroke,support]=[...frequency].sort((a,b)=>b[1]-a[1])[0];
+    // A common observed stroke can complete an artwork-covered side only
+    // when the family has overwhelmingly measured the very same endpoint.
+    if(stroke>6||depths.some(d=>d!==stroke)||support<frames.length*2)return null;
+    const rects=frames.map(r=>{
+      const insets=Object.fromEntries(sides.map(side=>[side,r.measured[side]||stroke]));
+      return {x:r.x,y:r.y,w:r.w,h:r.h,cx:r.x+r.w/2,cy:r.y+r.h/2,
+        cov:{L:1,R:1,T:1,B:1},__localClosedFrameV491:true,
+        __sourceLatticeExactV489:true,__sourceFrameInsetsV489:insets,
+        __isolatedSourceStroke:true};
+    });
+    const rows=[];for(const r of rects.slice().sort((a,b)=>a.y-b.y||a.x-b.x)){
+      let row=rows.find(g=>Math.abs(g.y-r.y)<=2);
+      if(!row){row={y:r.y,items:[]};rows.push(row);}row.items.push(r);
+    }
+    let cols=0;rows.forEach((row,ri)=>{row.items.sort((a,b)=>a.x-b.x);cols=Math.max(cols,row.items.length);row.items.forEach((r,ci)=>r.__localFrameCellV491={row:ri,col:ci});});
+    const ordered=rows.flatMap(row=>row.items);
+    return {applied:true,reason:'isolated-four-side-original-pixel-strokes',
+      image:{w:W,h:H},rects:ordered,boxes:ordered,count:rects.length,
+      accepted:rects.length,dominantCount:rects.length,rows:rows.length,cols,
+      isolatedSourceStroke:true,stroke,measuredSupport:support,
+      sizeSpread:{
+        w:(Math.max(...rects.map(r=>r.w))-Math.min(...rects.map(r=>r.w)))/Math.max(1,rects.map(r=>r.w).sort((a,b)=>a-b)[Math.floor(rects.length/2)]),
+        h:(Math.max(...rects.map(r=>r.h))-Math.min(...rects.map(r=>r.h)))/Math.max(1,rects.map(r=>r.h).sort((a,b)=>a-b)[Math.floor(rects.length/2)])},
+      variableWidthIndependentRowsV856:rows.length>=2};
+  }finally{binary.delete();contours.delete();hierarchy.delete();}
+}
+
 function __detectLocalClosedFrameGraphV491(sourceImage){
   const OW=sourceImage.width,OH=sourceImage.height;
   // V592: 수천만 화소 원본을 여러 OpenCV Mat와 ImageData로 동시에 복제하면
@@ -2751,6 +2817,10 @@ function __detectLocalClosedFrameGraphV491(sourceImage){
   try{
     src=cv.imread(c);gray=new cv.Mat();bin=new cv.Mat();mh=new cv.Mat();mv=new cv.Mat();mask=new cv.Mat();joined=new cv.Mat();
     cv.cvtColor(src,gray,cv.COLOR_RGBA2GRAY);
+    if(detectScaleV592===1){
+      const direct=__measureIsolatedSourceFrames(gray,W,H);
+      if(direct)return direct;
+    }
     cv.adaptiveThreshold(gray,bin,255,cv.ADAPTIVE_THRESH_GAUSSIAN_C,cv.THRESH_BINARY_INV,Math.max(15,(Math.round(Math.min(W,H)*.025)|1)),7);
     const __horizontalKernelV1026=Math.max(16,Math.round(W*.075));
     // V501: on very tall sheets H*.055 can exceed the height of an individual
@@ -3788,6 +3858,11 @@ function __classifyIndependentDirectFramesV1134(graph,img){
   Object.assign(out,{exact,count:rects.length,rows:Number(graph&&graph.rows)||0,
     cols:Number(graph&&graph.cols)||0,accepted:Number(graph&&graph.accepted)||0,
     dominantCount:Number(graph&&graph.dominantCount)||0});
+  if(exact&&graph.applied&&graph.isolatedSourceStroke&&rects.length>=2&&
+     rects.every(r=>r.__isolatedSourceStroke)){
+    return {...out,applied:true,reason:'isolated-original-pixel-stroke-owner',
+      geometryClass:'independent-source-rectangles'};
+  }
   if(!exact||!graph.applied||rects.length<6||out.rows<2||out.cols<2){
     out.reason=!exact?'source-identity-mismatch':!graph||!graph.applied?'v491-not-applied':
       rects.length<6?'too-few-direct-frames':'not-two-axis-layout';return out;
@@ -10966,6 +11041,7 @@ if (engineMode === 'rfee' && __borderlessRuledSheetV972.applied) {
     __gridLocalClosedPreflightV501.applied&&
     ((__gridLocalClosedPreflightV501.count||0)>=6||
      __v501CompleteSmallMatrixV1069||
+     __gridLocalClosedPreflightV501.isolatedSourceStroke||
      (__gridLocalClosedPreflightV501.sparseSingleAxisFrameV1072&&
       __gridLocalClosedPreflightV501.sparseSingleAxisFrameV1072.applied))&&
     ((__gridLocalClosedPreflightV501.rows||0)>=2||
@@ -24784,7 +24860,9 @@ const __dualBoundaryValidV1114=!!(__dualInnerV1114&&
   __dualInnerV1114.x+__dualInnerV1114.w<=r.x+r.w&&
   __dualInnerV1114.y+__dualInnerV1114.h<=r.y+r.h);
 const __sharedSourceEndpointV1121=__sourceMatrixEndpointByCandidateV1121.get(r)||null;
-if(cropMode==='tight'&&__sharedSourceEndpointV1121){
+// A source-wide row/column model cannot replace a directly proven per-cut inner.
+if(cropMode==='tight'&&__sharedSourceEndpointV1121&&
+   !(__actualFrameV554&&__actualFrameV554.perCutSourceBoundaryOwnerV1126)){
   const q=__sharedSourceEndpointV1121.inner;
   x=Math.round(q.x);y=Math.round(q.y);w=Math.round(q.w);h=Math.round(q.h);
   debugInfo.msg='V1121-SourceFrameRunEndpoint';
@@ -27435,6 +27513,13 @@ function __v463UnifiedResidualFrameRectRefine(){
   // over-crop. The user's aggressive option is still owned only by V322.
   const __opencvRowsForOwnerV673=(__v325CutPostTrace||[]).filter(t=>t&&t.cropMode==='tight');
   const __perFrameBoundaryIdsV681=new Set(__opencvRowsForOwnerV673.filter(t=>t.frameBoundaryOwnerV681).map(t=>t.idx+1));
+  // Physical boundary ownership is independent of the selected engine.
+  // GRID must not send these exact rectangles through a group-minimum crop.
+  for(const t of (__v325CutPostTrace||[])){
+    const i=Number.isInteger(t.orderedIdx)?t.orderedIdx:t.idx;
+    const q=__frameContractsV554[i];
+    if(q&&q.perCutSourceBoundaryOwnerV1126)__perFrameBoundaryIdsV681.add(t.idx+1);
+  }
   const __hasActualFastOwnerV673=__opencvRowsForOwnerV673.length>0&&__opencvRowsForOwnerV673.every(t=>String(t.engine).includes('opencv')&&String(t.msg||'').includes('V181-OpenCV-BlackCoreConsistency'));
   // V926: V554 deliberately keeps a contract unowned when one individual
   // picture does not prove all four sides.  A complete repeated OpenCV sheet
