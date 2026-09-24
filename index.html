@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- BUILD V1143: source-proven physical span frames remain one cut through final OpenCV lattice repair. -->
 <!-- BUILD V1139: transfer button moved to the logo slot without changing the execution-row height. -->
 <!-- BUILD V1133: preserve native engine identity for mixed-height ownership. -->
 <!-- BUILD V1138: source-proven V491 frame coordinates own matched cells even
@@ -1760,7 +1761,7 @@ body.dpc-tools-open .dpc-tools-panel{display:block}
 <canvas id="work" style="display:none"></canvas>
 
 <script>
-window.__FRAME_CUT_BUILD__='V1139_LOGO_TRANSFER_BUTTON';
+window.__FRAME_CUT_BUILD__='V1143_PHYSICAL_SPAN_FINAL_OWNER';
 let sourceImage = null;
 let sourceImages = [];
 let sourceFiles = [];
@@ -3042,6 +3043,42 @@ function __detectLocalClosedFrameGraphV491(sourceImage){
     const ws=best.items.map(v=>v.w),hs=best.items.map(v=>v.h),spreadW=(Math.max(...ws)-Math.min(...ws))/Math.max(1,best.mw),spreadH=(Math.max(...hs)-Math.min(...hs))/Math.max(1,best.mh);
     if((!best.__variableWidthRowsV856&&spreadW>.18)||spreadH>.18){dbg.reason='dominant-frame-size-irregular';return dbg;}
     let boxes=best.items.slice().sort((a,b)=>Math.abs(a.cy-b.cy)<=Math.max(8,best.mh*.28)?a.x-b.x:a.y-b.y);
+    // V1142: a source-proven closed frame may intentionally span several
+    // cells of the dominant repeated-size family.  V668 previously discarded
+    // that out-of-family rectangle, then interpreted artwork inside it as
+    // occupied missing cells and synthesized smaller cuts.  Physical source
+    // boundaries own inferred lattice intersections: a predicted cell may be
+    // suppressed only by a larger, independently detected four-side frame
+    // that contains it and shares the same row or column extent.
+    const __dominantMembersV1142=new Set(best.items);
+    const __closedSpanOwnersV1142=unique.filter(r=>{
+      if(__dominantMembersV1142.has(r)||r.__threeSideFrameV592)return false;
+      const vals=['L','R','T','B'].map(s=>Number(r.cov&&r.cov[s])||0);
+      return Math.min(...vals)>=.78&&vals.reduce((a,b)=>a+b,0)/4>=.88;
+    });
+    const __promotedSpanOwnersV1142=new Set();
+    const __spanOwnerForPredV1142=pred=>{
+      const pa=Math.max(1,pred.w*pred.h);
+      let owner=null,ownerArea=Infinity;
+      for(const r of __closedSpanOwnersV1142){
+        const ix=Math.max(0,Math.min(pred.x+pred.w,r.x+r.w)-Math.max(pred.x,r.x));
+        const iy=Math.max(0,Math.min(pred.y+pred.h,r.y+r.h)-Math.max(pred.y,r.y));
+        const contained=ix*iy/pa>=.90;
+        const rowSpan=r.h>=pred.h*.72&&r.h<=pred.h*1.28&&r.w>=pred.w*1.35;
+        const colSpan=r.w>=pred.w*.72&&r.w<=pred.w*1.28&&r.h>=pred.h*1.35;
+        const area=r.w*r.h;
+        if(contained&&(rowSpan||colSpan)&&area<ownerArea){owner=r;ownerArea=area;}
+      }
+      return owner;
+    };
+    const __promoteSpanOwnerV1142=(owner,row)=>{
+      if(!owner||__promotedSpanOwnersV1142.has(owner))return false;
+      owner.__sourceClosedSpanOwnerV1142=true;
+      boxes.push(owner);
+      if(row&&Array.isArray(row.items))row.items.push(owner);
+      __promotedSpanOwnersV1142.add(owner);
+      return true;
+    };
     const rowBands=[];for(const r of boxes){let row=rowBands.find(v=>Math.abs(v.cy-r.cy)<=Math.max(8,best.mh*.28));if(!row){row={cy:r.cy,items:[]};rowBands.push(row);}row.items.push(r);row.cy=row.items.reduce((n,v)=>n+v.cy,0)/row.items.length;}
     rowBands.sort((a,b)=>a.cy-b.cy);const maxCols=Math.max(...rowBands.map(v=>v.items.length));
     const repeatedStructure=rowBands.length>=2||boxes.length>=5||!!__sparseSingleAxisFrameV1072;if(!repeatedStructure){dbg.reason='not-repeated-layout';return dbg;}
@@ -3072,6 +3109,17 @@ function __detectLocalClosedFrameGraphV491(sourceImage){
       }
       if(!missing){rd.reason='no-missing-cell';return rd;}
       const pred={x:Math.round(colBands[missing.ci].cx-best.mw/2),y:Math.round(rowBands[missing.ri].cy-best.mh/2),w:Math.round(best.mw),h:Math.round(best.mh)};
+      const spanOwnerV1142=__spanOwnerForPredV1142(pred);
+      if(spanOwnerV1142){
+        __promoteSpanOwnerV1142(spanOwnerV1142,rowBands[missing.ri]);
+        boxes.sort((a,b)=>Math.abs(a.cy-b.cy)<=Math.max(8,best.mh*.28)?a.x-b.x:a.y-b.y);
+        rd.applied=true;
+        rd.reason='missing-intersection-owned-by-enclosing-source-frame-v1142';
+        rd.missing={row:missing.ri,col:missing.ci,rect:pred};
+        rd.spanOwner={x:spanOwnerV1142.x,y:spanOwnerV1142.y,w:spanOwnerV1142.w,h:spanOwnerV1142.h};
+        rd.afterCount=boxes.length;
+        return rd;
+      }
       const sourceSideCov=(side)=>{
         const horiz=side==='T'||side==='B',len=horiz?pred.w:pred.h,skip=Math.max(2,Math.floor(len*.025));let hit=0,n=0;
         for(let p=skip;p<len-skip;p++){
@@ -3268,10 +3316,20 @@ function __detectLocalClosedFrameGraphV491(sourceImage){
         return {pass,basePass,distributed,fourSourceSides,frameCov,frameSearch,frameRect,frameShape,frameMean:+frameMean.toFixed(3),activeRows,activeCols,active,mean:+mean.toFixed(2),std:+std.toFixed(2),dark245:+dark245.toFixed(4),dark225:+dark225.toFixed(4),samples:n};
       };
       const recovered=[];
+      const spanOwned=[];
       for(let ri=0;ri<rowBands.length;ri++)for(let ci=0;ci<colBands.length;ci++){
         const occupiedAlready=boxes.some(r=>Math.abs(r.cx-colBands[ci].cx)<=best.mw*.28&&Math.abs(r.cy-rowBands[ri].cy)<=best.mh*.28);
         if(occupiedAlready)continue;
         const pred={x:Math.round(colBands[ci].cx-best.mw/2),y:Math.round(rowBands[ri].cy-best.mh/2),w:Math.round(best.mw),h:Math.round(best.mh)};
+        const spanOwnerV1142=__spanOwnerForPredV1142(pred);
+        if(spanOwnerV1142){
+          spanOwned.push({row:ri,col:ci,rect:pred,owner:spanOwnerV1142});
+          rd.candidates.push({row:ri,col:ci,rect:pred,
+            evidence:{pass:false,fourSourceSides:false,
+              suppressedBySourceClosedSpanV1142:true,
+              owner:{x:spanOwnerV1142.x,y:spanOwnerV1142.y,w:spanOwnerV1142.w,h:spanOwnerV1142.h}}});
+          continue;
+        }
         const evidence=repeatedAxisSupportV1032
           ?occupied(pred):sourceFrameEvidenceV1032(pred);
         rd.candidates.push({row:ri,col:ci,rect:pred,evidence});
@@ -3285,7 +3343,7 @@ function __detectLocalClosedFrameGraphV491(sourceImage){
           __recoveredDirectSourceFrameV905:!!evidence.fourSourceSides};
         recovered.push({rect:rec,row:ri,col:ci});
       }
-      if(!recovered.length){
+      if(!recovered.length&&!spanOwned.length){
         rd.reason=rd.candidates.some(c=>c.evidence&&c.evidence.basePass&&!c.evidence.distributed)
           ?'content-present-but-not-spatially-distributed-artwork'
           :'no-occupied-missing-intersections';
@@ -3403,16 +3461,29 @@ function __detectLocalClosedFrameGraphV491(sourceImage){
         rowBands[item.row].items.push(item.rect);
         colBands[item.col].items.push(item.rect);
       }
+      for(const item of spanOwned)
+        __promoteSpanOwnerV1142(item.owner,rowBands[item.row]);
       boxes.push(...recovered.map(v=>v.rect));
       boxes.sort((a,b)=>Math.abs(a.cy-b.cy)<=Math.max(8,best.mh*.28)?a.x-b.x:a.y-b.y);
       rd.applied=true;
-      rd.reason=fullMatrixFourSideCompletionV1032
+      rd.reason=spanOwned.length&&!recovered.length
+        ?'missing-intersections-owned-by-enclosing-source-frames-v1142'
+        :(fullMatrixFourSideCompletionV1032
         ?'complete-matrix-restored-by-four-source-sides-v1032'
-        :'missing-intersections-restored-by-source-occupancy';
-      rd.recoveredCount=recovered.length;rd.afterCount=boxes.length;return rd;
+        :'missing-intersections-restored-by-source-occupancy');
+      rd.recoveredCount=recovered.length;
+      rd.spanOwnedCount=spanOwned.length;
+      rd.spanOwners=[...__promotedSpanOwnersV1142].map(r=>({x:r.x,y:r.y,w:r.w,h:r.h}));
+      rd.afterCount=boxes.length;return rd;
     };
     const __virtualOccupiedV668=__recoverOccupiedVirtualCellsV668();
     dbg.virtualOccupiedRecoveryV668=__virtualOccupiedV668;
+    dbg.sourceClosedSpanOwnershipV1142={
+      applied:__promotedSpanOwnersV1142.size>0,
+      promoted:[...__promotedSpanOwnersV1142].map(r=>({x:r.x,y:r.y,w:r.w,h:r.h})),
+      suppressedIntersections:Number(__virtualOccupiedV668.spanOwnedCount)||0,
+      policy:'source-four-side-span-owns-enclosed-inferred-cells'
+    };
     dbg.directSourceFrameRecoveryV905={
       applied:!!(__virtualOccupiedV668.applied&&__virtualOccupiedV668.candidates.some(c=>c.evidence&&c.evidence.fourSourceSides)),
       recovered:(__virtualOccupiedV668.candidates||[]).filter(c=>c.evidence&&c.evidence.fourSourceSides).map(c=>({row:c.row,col:c.col,rect:c.rect,frameCov:c.evidence.frameCov}))
@@ -3793,7 +3864,7 @@ function __detectLocalClosedFrameGraphV491(sourceImage){
       }else{
         boundaryAuditV779.push({index:i+1,virtual:true,workingOuter:{x:r.x,y:r.y,w:r.w,h:r.h},sourceOuter:{...q},sourceInsetsV775:{...sourceInsetsV775}});
       }
-      return {...q,cx:q.x+q.w/2,cy:q.y+q.h/2,cov:r.cov,score:r.score,__threeSideFrameV592:!!r.__threeSideFrameV592,__recoveredSingleMissingV557:!!r.__recoveredSingleMissingV557,__virtualOccupiedCellV668:!!r.__virtualOccupiedCellV668,...(r.__recoveredDirectSourceFrameV905?{__recoveredDirectSourceFrameV905:true}:{}),...(r.__phaseCanonicalMatrixV1032?{__phaseCanonicalMatrixV1032:{...r.__phaseCanonicalMatrixV1032}}:{}),...(r.__peerAxisRepairV1032?{__peerAxisRepairV1032:{...r.__peerAxisRepairV1032}}:{}),__localClosedFrameV491:true,__sourceLatticeExactV489:true,__sourceFrameInsetsV489:sourceInsetsV775,__v711ProjectionV878:{...legacyQ,__sourceFrameInsetsV489:legacyInsets},__localFrameCellV491:{row:rowBands.findIndex(v=>v.items.includes(r)),col:__finalColBandsV1032.findIndex(v=>v.items.includes(r))}};
+      return {...q,cx:q.x+q.w/2,cy:q.y+q.h/2,cov:r.cov,score:r.score,__threeSideFrameV592:!!r.__threeSideFrameV592,__recoveredSingleMissingV557:!!r.__recoveredSingleMissingV557,__virtualOccupiedCellV668:!!r.__virtualOccupiedCellV668,...(r.__sourceClosedSpanOwnerV1142?{__sourceClosedSpanOwnerV1142:true}:{}),...(r.__recoveredDirectSourceFrameV905?{__recoveredDirectSourceFrameV905:true}:{}),...(r.__phaseCanonicalMatrixV1032?{__phaseCanonicalMatrixV1032:{...r.__phaseCanonicalMatrixV1032}}:{}),...(r.__peerAxisRepairV1032?{__peerAxisRepairV1032:{...r.__peerAxisRepairV1032}}:{}),__localClosedFrameV491:true,__sourceLatticeExactV489:true,__sourceFrameInsetsV489:sourceInsetsV775,__v711ProjectionV878:{...legacyQ,__sourceFrameInsetsV489:legacyInsets},__localFrameCellV491:{row:rowBands.findIndex(v=>v.items.includes(r)),col:__finalColBandsV1032.findIndex(v=>v.items.includes(r))}};
     });
     const __directCompleteSourceMatrixV1032=!!(
       __virtualOccupiedV668.fullMatrixFourSideCompletionV1032&&
@@ -3807,7 +3878,7 @@ function __detectLocalClosedFrameGraphV491(sourceImage){
           Math.min(...cov)>=.78&&cov.reduce((a,b)=>a+b,0)>=3.52;
       })
     );
-    Object.assign(dbg,{applied:true,reason:__sparseSingleAxisFrameV1072?'credible-sparse-single-axis-four-side-frames-v1072':__virtualOccupiedV668.fullMatrixFourSideCompletionV1032&&__virtualOccupiedV668.fullMatrixFourSideCompletionV1032.applied?'credible-repeated-local-frames-complete-four-side-matrix-v1032':__singleMissingV557.applied?'credible-repeated-local-frames-single-cell-restored':best.__variableWidthRowsV856?'credible-variable-width-independent-frame-rows-v856':'credible-repeated-local-frames-scaled-three-side',sparseSingleAxisFrameV1072:__sparseSingleAxisFrameV1072?{...dbg.sparseSingleAxisFrameV1072}:null,directCompleteSourceMatrixV1032:{applied:__directCompleteSourceMatrixV1032,reason:__directCompleteSourceMatrixV1032?'complete-phase-canonical-matrix-with-four-source-sides':'not-complete-phase-canonical-source-matrix',padding:false,resize:false},variableWidthIndependentRowsV856:!!best.__variableWidthRowsV856,verticalKernelV501:__localVerticalKernelV501,rows:rowBands.length,cols:__finalMaxColsV1032,count:out.length,medianW:(__publishFinalSpreadV1032?__finalMwV1032:best.mw)*toSourceV592,medianH:(__publishFinalSpreadV1032?__finalMhV1032:best.mh)*toSourceV592,sizeSpread:__publishFinalSpreadV1032?__finalSizeSpreadV1032:{w:+spreadW.toFixed(3),h:+spreadH.toFixed(3)},threeSideCount:out.filter(r=>r.__threeSideFrameV592).length,softInsetRepairsV776,boundaryAuditV779,boxes:out.map(r=>({x:r.x,y:r.y,w:r.w,h:r.h,insets:r.__sourceFrameInsetsV489,threeSideV592:!!r.__threeSideFrameV592,recoveredV557:!!r.__recoveredSingleMissingV557,phaseCanonicalV1032:r.__phaseCanonicalMatrixV1032||null,peerAxisRepairV1032:r.__peerAxisRepairV1032||null})),rects:out});
+    Object.assign(dbg,{applied:true,reason:__sparseSingleAxisFrameV1072?'credible-sparse-single-axis-four-side-frames-v1072':__virtualOccupiedV668.fullMatrixFourSideCompletionV1032&&__virtualOccupiedV668.fullMatrixFourSideCompletionV1032.applied?'credible-repeated-local-frames-complete-four-side-matrix-v1032':__singleMissingV557.applied?'credible-repeated-local-frames-single-cell-restored':best.__variableWidthRowsV856?'credible-variable-width-independent-frame-rows-v856':'credible-repeated-local-frames-scaled-three-side',sparseSingleAxisFrameV1072:__sparseSingleAxisFrameV1072?{...dbg.sparseSingleAxisFrameV1072}:null,directCompleteSourceMatrixV1032:{applied:__directCompleteSourceMatrixV1032,reason:__directCompleteSourceMatrixV1032?'complete-phase-canonical-matrix-with-four-source-sides':'not-complete-phase-canonical-source-matrix',padding:false,resize:false},variableWidthIndependentRowsV856:!!best.__variableWidthRowsV856,verticalKernelV501:__localVerticalKernelV501,rows:rowBands.length,cols:__finalMaxColsV1032,count:out.length,medianW:(__publishFinalSpreadV1032?__finalMwV1032:best.mw)*toSourceV592,medianH:(__publishFinalSpreadV1032?__finalMhV1032:best.mh)*toSourceV592,sizeSpread:__publishFinalSpreadV1032?__finalSizeSpreadV1032:{w:+spreadW.toFixed(3),h:+spreadH.toFixed(3)},threeSideCount:out.filter(r=>r.__threeSideFrameV592).length,softInsetRepairsV776,boundaryAuditV779,boxes:out.map(r=>({x:r.x,y:r.y,w:r.w,h:r.h,insets:r.__sourceFrameInsetsV489,threeSideV592:!!r.__threeSideFrameV592,recoveredV557:!!r.__recoveredSingleMissingV557,spanOwnerV1142:!!r.__sourceClosedSpanOwnerV1142,phaseCanonicalV1032:r.__phaseCanonicalMatrixV1032||null,peerAxisRepairV1032:r.__peerAxisRepairV1032||null})),rects:out});
     return dbg;
   }catch(e){dbg.reason='detector-error';dbg.error=String(e);return dbg;}
   finally{for(const m of [src,gray,bin,mh,mv,mask,joined,contours,hierarchy,hk,vk,jk])try{m&&m.delete();}catch(e){}}
@@ -16651,6 +16722,41 @@ window.__AUTO_INCOMPLETE_FRAME_GRID_V910__=__autoIncompleteFrameGridV910;
 console.log('[AUTO_INCOMPLETE_FRAME_GRID_V910]',__autoIncompleteFrameGridV910);
 console.log('[OPENCV_LOCAL_SECTIONS_V580]',window.__OPENCV_LOCAL_SECTIONS_V580__);
 
+// V1143 final ownership contract.  A rectangle is a physical multi-cell
+// frame only when its own source pixels prove all four sides and its short
+// axis still belongs to the repeated cell family.  Width/height alone never
+// establishes this contract.  The same symmetric test is shared by both
+// lattice restorers and the merged-neighborhood deduper.
+function __classifySourcePhysicalSpanV1143(r,cellW,cellH){
+  const out={applied:false,axis:null,reason:'not-source-proven-four-side-frame'};
+  if(!r||!(cellW>0)||!(cellH>0))return out;
+  const sides=['L','R','T','B'];
+  const insets=r.__sourceFrameInsetsV489||{};
+  const cov=r.cov||{};
+  const cover=sides.map(s=>Number(cov[s])||0);
+  const fourInsets=sides.every(s=>Number.isFinite(Number(insets[s]))&&Number(insets[s])>=1);
+  const fourContinuous=cover.every(v=>v>=.56)&&cover.reduce((n,v)=>n+v,0)>=2.65;
+  // The ownership marker is not a sample exception: V1142 sets it only after
+  // the source contour itself passes stricter four-side continuity (.78/.88),
+  // contains inferred centers, and matches the repeated family's short axis.
+  // Re-evaluate the same physical evidence when the marker is unavailable.
+  const sourceProven=!!r.__sourceClosedSpanOwnerV1142||
+    (!!r.__sourceLatticeExactV489&&fourInsets&&fourContinuous);
+  if(!sourceProven)return out;
+  const horizontal=r.w>=cellW*1.35&&r.h>=cellH*.72&&r.h<=cellH*1.28;
+  const vertical=r.h>=cellH*1.35&&r.w>=cellW*.72&&r.w<=cellW*1.28;
+  if(!horizontal&&!vertical){out.reason='source-frame-does-not-span-one-axis';return out;}
+  out.applied=true;
+  out.axis=horizontal?'horizontal':'vertical';
+  out.reason='source-proven-closed-physical-span';
+  out.coverage={L:cover[0],R:cover[1],T:cover[2],B:cover[3]};
+  return out;
+}
+function __containsLatticeCenterV1143(r,cx,cy,cellW,cellH){
+  return cx>=r.x-cellW*.08&&cx<=r.x+r.w+cellW*.08&&
+    cy>=r.y-cellH*.08&&cy<=r.y+r.h+cellH*.08;
+}
+
 // V547 OpenCV-only duplicate cleanup around a proven merged-contour case.
 // Do not run on ordinary OpenCV sheets: the gate requires either an applied
 // structural split/refine or a clear >=1.65x merged dimension.  Inside that
@@ -16667,7 +16773,8 @@ function __dedupeOpenCvMergedNeighborhoodV547(boxes){
     (window.__OPENCV_MERGED_FRAME_SPLIT_V490__||{}).applied||
     (window.__OPENCV_LOCAL_CLOSED_FRAME_REFINE_V491__||{}).applied
   );
-  const sizeEvidence=src.some(r=>r.w>=mw*1.65||r.h>=mh*1.65);
+  const physicalSpansV1143=new Map(src.map(r=>[r,__classifySourcePhysicalSpanV1143(r,mw,mh)]).filter(v=>v[1].applied));
+  const sizeEvidence=src.some(r=>(r.w>=mw*1.65||r.h>=mh*1.65)&&!physicalSpansV1143.has(r));
   const areaV1064=r=>Math.max(1,r.w*r.h);
   const containmentV1064=(p,c)=>{
     const x0=Math.max(p.x,c.x),y0=Math.max(p.y,c.y),x1=Math.min(p.x+p.w,c.x+c.w),y1=Math.min(p.y+p.h,c.y+c.h);
@@ -16695,7 +16802,7 @@ function __dedupeOpenCvMergedNeighborhoodV547(boxes){
   }
   const containedEvidence=containedResiduesV1064.size>0;
   dbg.mergedEvidence=structuralEvidence||sizeEvidence||containedEvidence;
-  dbg.evidence={structuralEvidence,sizeEvidence,containedEvidence,containedResidues:containedResiduesV1064.size,containerFamily:containerFamilyV1064.length,medianW:+mw.toFixed(2),medianH:+mh.toFixed(2)};
+  dbg.evidence={structuralEvidence,sizeEvidence,containedEvidence,containedResidues:containedResiduesV1064.size,containerFamily:containerFamilyV1064.length,physicalSpanCount:physicalSpansV1143.size,physicalSpanAxes:[...physicalSpansV1143.values()].map(v=>v.axis),medianW:+mw.toFixed(2),medianH:+mh.toFixed(2)};
   if(!dbg.mergedEvidence){dbg.reason='no-merged-contour-evidence';return {boxes:src,debug:dbg};}
   const area=r=>Math.max(1,r.w*r.h);
   const pairStats=(a,b)=>{
@@ -16724,6 +16831,7 @@ function __dedupeOpenCvMergedNeighborhoodV547(boxes){
   const parentRemoved=new Set();
   src.forEach((p,pi)=>{
     if(!(p.w>=mw*1.65||p.h>=mh*1.65))return;
+    if(physicalSpansV1143.has(p))return;
     const children=src.map((c,ci)=>({c,ci})).filter(v=>v.ci!==pi&&dominantLike(v.c)&&contains(p,v.c)>=.90);
     if(children.length<2)return;
     let separatePair=false;
@@ -16812,12 +16920,20 @@ function __restoreOpenCvMergedLatticeCellsV549(boxes){
   };
   const xm=axisModel(xSeed,base.mw),ym=axisModel(ySeed,base.mh);
   if(!xm||!ym){dbg.reason='lattice-pitch-not-credible';return {boxes:src,debug:dbg};}
-  const containsCenter=(r,cx,cy)=>cx>=r.x-base.mw*.08&&cx<=r.x+r.w+base.mw*.08&&cy>=r.y-base.mh*.08&&cy<=r.y+r.h+base.mh*.08;
-  const cells=[];let covered=0,baseHits=0;
+  const containsCenter=(r,cx,cy)=>__containsLatticeCenterV1143(r,cx,cy,base.mw,base.mh);
+  const physicalSpans=src.filter(r=>__classifySourcePhysicalSpanV1143(r,base.mw,base.mh).applied);
+  const physicalSpanSet=new Set(physicalSpans);
+  const ambiguousMerged=src.filter(r=>(r.w>=base.mw*1.55||r.h>=base.mh*1.55)&&!physicalSpanSet.has(r));
+  const cells=[];const blocked=[];let covered=0,baseHits=0;
   ym.centers.forEach((cy,row)=>xm.centers.forEach((cx,col)=>{
     const exact=base.items.find(r=>Math.abs((r.x+r.w/2)-cx)<=base.mw*.22&&Math.abs((r.y+r.h/2)-cy)<=base.mh*.22);
-    const owner=exact||src.find(r=>containsCenter(r,cx,cy));
+    const spanOwner=!exact&&physicalSpans.find(r=>containsCenter(r,cx,cy));
+    const owner=exact||spanOwner||src.find(r=>containsCenter(r,cx,cy));
     if(owner)covered++;if(exact)baseHits++;
+    // A source-proven physical span owns every inferred lattice center inside
+    // it.  Those centers are evidence of coverage, not permission to create
+    // child cuts.  The owner itself is appended exactly once below.
+    if(spanOwner){blocked.push({row,col,cx,cy,owner:spanOwner});return;}
     // The proven lattice owns both size and phase.  Using the common centers
     // also corrects the 1-2px drift of otherwise unmerged OpenCV contours.
     // V675 coordinate ownership.  A normal repeated OpenCV frame uses the
@@ -16832,8 +16948,10 @@ function __restoreOpenCvMergedLatticeCellsV549(boxes){
     cells.push({...actual,cx:actual.x+actual.w/2,cy:actual.y+actual.h/2,__engine:preserveActual?'opencv-virtual-actual-cell-v675':'opencv-merged-lattice-cell-v549',__opencvMergedLatticeCellV549:true,__opencvActualCellBoundsV673:preserveActual,__opencvConditionalCoordinateOwnerV675:preserveActual?'virtual-actual':'regular-lattice-common',__opencvObservedFrameRectV686:observed,__opencvProtectionV551:{L:capX,R:capX,T:capY,B:capY},__opencvCellV549:{row,col,restored:!exact,ownerMissing:!owner,observed}});
   }));
   const total=xm.centers.length*ym.centers.length,coverage=covered/Math.max(1,total),baseRatio=baseHits/Math.max(1,total);
-  Object.assign(dbg,{baseCount:base.items.length,baseW:base.mw,baseH:base.mh,rows:ym.centers.length,cols:xm.centers.length,total,covered,coverage:+coverage.toFixed(3),baseRatio:+baseRatio.toFixed(3),xPitch:+xm.pitch.toFixed(2),yPitch:+ym.pitch.toFixed(2),xObserved:(xm.observed||[]).map(v=>+v.toFixed(2)),yObserved:(ym.observed||[]).map(v=>+v.toFixed(2)),xInterpolated:xm.interpolated||0,yInterpolated:ym.interpolated||0,phasePolicy:'observed-then-gap-interpolate-v680'});
-  const hasMerged=src.some(r=>r.w>=base.mw*1.55||r.h>=base.mh*1.55),closedRefine=!!((window.__OPENCV_LOCAL_CLOSED_FRAME_REFINE_V491__||{}).applied);
+  const expectedCells=total-blocked.length;
+  const output=[...cells,...physicalSpans].sort((a,b)=>(a.y+a.h/2)-(b.y+b.h/2)||(a.x+a.w/2)-(b.x+b.w/2));
+  Object.assign(dbg,{baseCount:base.items.length,baseW:base.mw,baseH:base.mh,rows:ym.centers.length,cols:xm.centers.length,total,covered,coverage:+coverage.toFixed(3),baseRatio:+baseRatio.toFixed(3),physicalSpanCount:physicalSpans.length,physicalSpanAxes:physicalSpans.map(r=>__classifySourcePhysicalSpanV1143(r,base.mw,base.mh).axis),blockedChildCells:blocked.length,ambiguousMergedCount:ambiguousMerged.length,xPitch:+xm.pitch.toFixed(2),yPitch:+ym.pitch.toFixed(2),xObserved:(xm.observed||[]).map(v=>+v.toFixed(2)),yObserved:(ym.observed||[]).map(v=>+v.toFixed(2)),xInterpolated:xm.interpolated||0,yInterpolated:ym.interpolated||0,phasePolicy:'observed-then-gap-interpolate-v680'});
+  const hasMerged=ambiguousMerged.length>0,closedRefine=!!((window.__OPENCV_LOCAL_CLOSED_FRAME_REFINE_V491__||{}).applied);
   dbg.closedFrameRefine=closedRefine;
   // V690: V549 is a repair route for a genuinely merged contour, not a
   // replacement coordinate system for an already complete OpenCV sheet.
@@ -16842,9 +16960,9 @@ function __restoreOpenCvMergedLatticeCellsV549(boxes){
   // inherit a lattice representative and disconnected the stable per-cut
   // V187 boundary/thickness path.  Keep the independently detected boxes
   // unless an actual multi-cell contour proves that restoration is required.
-  if(!hasMerged||coverage<.92||baseRatio<.28||cells.length!==total){dbg.reason=!hasMerged?'no-genuine-merged-contour-v690':coverage<.92?'incomplete-cell-coverage':baseRatio<.28?'too-little-direct-cell-evidence':'cell-count-mismatch';return {boxes:src,debug:dbg};}
-  dbg.applied=true;dbg.reason='merged-contours-replaced-by-source-opencv-lattice-cells';dbg.afterCount=cells.length;dbg.restoredCount=cells.filter(r=>r.__opencvCellV549.restored).length;dbg.actualOwnedCount=cells.filter(r=>r.__opencvConditionalCoordinateOwnerV675==='virtual-actual').length;dbg.commonOwnedCount=cells.filter(r=>r.__opencvConditionalCoordinateOwnerV675==='regular-lattice-common').length;dbg.cells=cells.map(r=>({x:r.x,y:r.y,w:r.w,h:r.h,row:r.__opencvCellV549.row,col:r.__opencvCellV549.col,restored:r.__opencvCellV549.restored,owner:r.__opencvConditionalCoordinateOwnerV675}));
-  return {boxes:cells,debug:dbg};
+  if(!hasMerged||coverage<.92||baseRatio<.28||cells.length!==expectedCells){dbg.reason=!hasMerged?(physicalSpans.length?'only-source-proven-physical-spans-v1143':'no-genuine-merged-contour-v690'):coverage<.92?'incomplete-cell-coverage':baseRatio<.28?'too-little-direct-cell-evidence':'cell-count-mismatch';return {boxes:src,debug:dbg};}
+  dbg.applied=true;dbg.reason='ambiguous-merged-contours-repaired-with-physical-span-ownership-v1143';dbg.afterCount=output.length;dbg.restoredCount=cells.filter(r=>r.__opencvCellV549.restored).length;dbg.actualOwnedCount=cells.filter(r=>r.__opencvConditionalCoordinateOwnerV675==='virtual-actual').length;dbg.commonOwnedCount=cells.filter(r=>r.__opencvConditionalCoordinateOwnerV675==='regular-lattice-common').length;dbg.cells=cells.map(r=>({x:r.x,y:r.y,w:r.w,h:r.h,row:r.__opencvCellV549.row,col:r.__opencvCellV549.col,restored:r.__opencvCellV549.restored,owner:r.__opencvConditionalCoordinateOwnerV675}));dbg.physicalSpans=physicalSpans.map(r=>({x:r.x,y:r.y,w:r.w,h:r.h,axis:__classifySourcePhysicalSpanV1143(r,base.mw,base.mh).axis}));
+  return {boxes:output,debug:dbg};
 }
 function __restoreOpenCvRepeatedEdgeLatticeV550(boxes){
   const src=(boxes||[]).slice(),dbg={version:'v550-opencv-repeated-left-top-edge-lattice',applied:false,reason:'not-evaluated',beforeCount:src.length,afterCount:src.length};
@@ -16872,11 +16990,17 @@ function __restoreOpenCvRepeatedEdgeLatticeV550(boxes){
   const normal=src.filter(r=>r.w<xm.pitch*1.30&&r.h<ym.pitch*1.30);
   if(normal.length<6){dbg.reason='too-few-single-cell-boxes';return {boxes:src,debug:dbg};}
   const cellW=med(normal.map(r=>r.w)),cellH=med(normal.map(r=>r.h));
-  const cells=[];let covered=0;
+  const physicalSpans=src.filter(r=>__classifySourcePhysicalSpanV1143(r,cellW,cellH).applied);
+  const physicalSpanSet=new Set(physicalSpans);
+  const ambiguousMerged=src.filter(r=>(r.w>=cellW*1.55||r.h>=cellH*1.55)&&!physicalSpanSet.has(r));
+  const cells=[];const blocked=[];let covered=0;
   ym.centers.forEach((y,row)=>xm.centers.forEach((x,col)=>{
     const cx=x+cellW/2,cy=y+cellH/2;
-    const owner=src.find(r=>cx>=r.x-cellW*.08&&cx<=r.x+r.w+cellW*.08&&cy>=r.y-cellH*.08&&cy<=r.y+r.h+cellH*.08);
+    const exact=normal.find(r=>Math.abs(r.x-x)<=Math.max(5,cellW*.18)&&Math.abs(r.y-y)<=Math.max(5,cellH*.18));
+    const spanOwner=!exact&&physicalSpans.find(r=>__containsLatticeCenterV1143(r,cx,cy,cellW,cellH));
+    const owner=exact||spanOwner||src.find(r=>__containsLatticeCenterV1143(r,cx,cy,cellW,cellH));
     if(!owner)return;covered++;
+    if(spanOwner){blocked.push({row,col,cx,cy,owner:spanOwner});return;}
     const ownerIsSingle=owner.w<xm.pitch*1.30&&owner.h<ym.pitch*1.30;
     const preserveActual=!!(ownerIsSingle&&(owner.__virtualOccupiedCellV668||owner.__virtualOpenCvImageBoundsV670||owner.__autoOpenCvBoundaryV671));
     const actual=preserveActual?{x:Math.round(owner.x),y:Math.round(owner.y),w:Math.round(owner.w),h:Math.round(owner.h)}:{x:Math.round(x),y:Math.round(y),w:Math.round(cellW),h:Math.round(cellH)};
@@ -16884,11 +17008,13 @@ function __restoreOpenCvRepeatedEdgeLatticeV550(boxes){
     const observed=ownerIsSingle?{x:Math.round(owner.x),y:Math.round(owner.y),w:Math.round(owner.w),h:Math.round(owner.h)}:null;
     cells.push({...actual,cx:actual.x+actual.w/2,cy:actual.y+actual.h/2,__engine:preserveActual?'opencv-virtual-edge-actual-v675':'opencv-repeated-edge-lattice-v550',__opencvRepeatedEdgeCellV550:true,__opencvActualCellBoundsV673:preserveActual,__opencvConditionalCoordinateOwnerV675:preserveActual?'virtual-actual':'regular-lattice-common',__opencvObservedFrameRectV686:observed,__opencvProtectionV551:{L:capX,R:capX,T:capY,B:capY},__opencvCellV550:{row,col,owner:{x:owner.x,y:owner.y,w:owner.w,h:owner.h},observed}});
   }));
-  const total=xm.centers.length*ym.centers.length,coverage=covered/Math.max(1,total),hasMerged=src.some(r=>r.w>=cellW*1.55||r.h>=cellH*1.55);
-  Object.assign(dbg,{rows:ym.centers.length,cols:xm.centers.length,total,covered,coverage:+coverage.toFixed(3),cellW:+cellW.toFixed(2),cellH:+cellH.toFixed(2),xPitch:+xm.pitch.toFixed(2),yPitch:+ym.pitch.toFixed(2),xPhase:xm.values.map(v=>+v.toFixed(2)),yPhase:ym.values.map(v=>+v.toFixed(2)),xError:+xm.maxErr.toFixed(3),yError:+ym.maxErr.toFixed(3),normalCount:normal.length,hasMerged});
-  if(!hasMerged||coverage<.92||cells.length!==total){dbg.reason=!hasMerged?'no-merged-contour':coverage<.92?'incomplete-cell-owner-coverage':'cell-count-mismatch';return {boxes:src,debug:dbg};}
-  dbg.applied=true;dbg.reason='merged-contours-replaced-by-repeated-opencv-edge-lattice';dbg.afterCount=cells.length;dbg.actualOwnedCount=cells.filter(r=>r.__opencvConditionalCoordinateOwnerV675==='virtual-actual').length;dbg.commonOwnedCount=cells.filter(r=>r.__opencvConditionalCoordinateOwnerV675==='regular-lattice-common').length;dbg.cells=cells.map(r=>({x:r.x,y:r.y,w:r.w,h:r.h,row:r.__opencvCellV550.row,col:r.__opencvCellV550.col,ownerRect:r.__opencvCellV550.owner,coordinateOwner:r.__opencvConditionalCoordinateOwnerV675}));
-  return {boxes:cells,debug:dbg};
+  const total=xm.centers.length*ym.centers.length,coverage=covered/Math.max(1,total),hasMerged=ambiguousMerged.length>0;
+  const expectedCells=total-blocked.length;
+  const output=[...cells,...physicalSpans].sort((a,b)=>(a.y+a.h/2)-(b.y+b.h/2)||(a.x+a.w/2)-(b.x+b.w/2));
+  Object.assign(dbg,{rows:ym.centers.length,cols:xm.centers.length,total,covered,coverage:+coverage.toFixed(3),cellW:+cellW.toFixed(2),cellH:+cellH.toFixed(2),xPitch:+xm.pitch.toFixed(2),yPitch:+ym.pitch.toFixed(2),xPhase:xm.values.map(v=>+v.toFixed(2)),yPhase:ym.values.map(v=>+v.toFixed(2)),xError:+xm.maxErr.toFixed(3),yError:+ym.maxErr.toFixed(3),normalCount:normal.length,hasMerged,physicalSpanCount:physicalSpans.length,physicalSpanAxes:physicalSpans.map(r=>__classifySourcePhysicalSpanV1143(r,cellW,cellH).axis),blockedChildCells:blocked.length,ambiguousMergedCount:ambiguousMerged.length});
+  if(!hasMerged||coverage<.92||cells.length!==expectedCells){dbg.reason=!hasMerged?(physicalSpans.length?'only-source-proven-physical-spans-v1143':'no-merged-contour'):coverage<.92?'incomplete-cell-owner-coverage':'cell-count-mismatch';return {boxes:src,debug:dbg};}
+  dbg.applied=true;dbg.reason='ambiguous-merged-contours-repaired-with-physical-span-ownership-v1143';dbg.afterCount=output.length;dbg.actualOwnedCount=cells.filter(r=>r.__opencvConditionalCoordinateOwnerV675==='virtual-actual').length;dbg.commonOwnedCount=cells.filter(r=>r.__opencvConditionalCoordinateOwnerV675==='regular-lattice-common').length;dbg.cells=cells.map(r=>({x:r.x,y:r.y,w:r.w,h:r.h,row:r.__opencvCellV550.row,col:r.__opencvCellV550.col,ownerRect:r.__opencvCellV550.owner,coordinateOwner:r.__opencvConditionalCoordinateOwnerV675}));dbg.physicalSpans=physicalSpans.map(r=>({x:r.x,y:r.y,w:r.w,h:r.h,axis:__classifySourcePhysicalSpanV1143(r,cellW,cellH).axis}));
+  return {boxes:output,debug:dbg};
 }
 // V571: AUTO choosing the same credible local closed-frame set as direct GRID
 // must commit the exact direct-GRID container and provenance before any late
