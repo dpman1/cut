@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD V1143: source-proven physical span frames remain one cut through final OpenCV lattice repair. -->
+<!-- BUILD V1144: colour-coherent shared gutters own frameless card matrices without internal-box fragmentation. -->
 <!-- BUILD V1139: transfer button moved to the logo slot without changing the execution-row height. -->
 <!-- BUILD V1133: preserve native engine identity for mixed-height ownership. -->
 <!-- BUILD V1138: source-proven V491 frame coordinates own matched cells even
@@ -1761,7 +1761,7 @@ body.dpc-tools-open .dpc-tools-panel{display:block}
 <canvas id="work" style="display:none"></canvas>
 
 <script>
-window.__FRAME_CUT_BUILD__='V1143_PHYSICAL_SPAN_FINAL_OWNER';
+window.__FRAME_CUT_BUILD__='V1144_COHERENT_GUTTER_FAMILY';
 let sourceImage = null;
 let sourceImages = [];
 let sourceFiles = [];
@@ -9368,6 +9368,87 @@ if(__sharedLocalClosedStrictV854){
   };
 }
 
+// V1144: V903 is a source-level frameless matrix proof, but it must not run as
+// an unconditional early owner because a genuinely framed sheet can also have
+// continuous passages between cells.  Reconcile it here, after V491 has had
+// the chance to prove a matching physical-frame population and after ordinary
+// OpenCV has demonstrated actual fragmentation.  This gives AUTO and explicit
+// OpenCV the same result without routing through GRID or inventing cells.
+const __reconcileSharedGutterPopulationV1144=(boxes)=>{
+  const src=(boxes||[]).slice();
+  const cached=__ownsCurrentSourceV1040(window.__AUTO_SHARED_GUTTER_RECOMMENDATION_V935__)
+    ?window.__AUTO_SHARED_GUTTER_RECOMMENDATION_V935__:null;
+  const area=r=>Math.max(1,r.w*r.h);
+  const contains=(p,c)=>{
+    const x0=Math.max(p.x,c.x),y0=Math.max(p.y,c.y);
+    const x1=Math.min(p.x+p.w,c.x+c.w),y1=Math.min(p.y+p.h,c.y+c.h);
+    return Math.max(0,x1-x0)*Math.max(0,y1-y0)/area(c);
+  };
+  let nestedPairs=0;
+  for(let i=0;i<src.length;i++)for(let j=0;j<src.length;j++){
+    if(i===j||area(src[i])<area(src[j])*1.7)continue;
+    if(contains(src[i],src[j])>=.90)nestedPairs++;
+  }
+  const areas=src.map(area).sort((a,b)=>a-b);
+  const areaSpread=areas.length
+    ?areas[areas.length-1]/Math.max(1,areas[Math.floor(areas.length/2)])
+    :1;
+  const localMixed=!!(__sharedLocalClosedV854&&
+    Number(__sharedLocalClosedV854.accepted||0)>
+      Number(__sharedLocalClosedV854.dominantCount||0));
+  // Do not add a second source scan to ordinary uniform OpenCV sheets.  The
+  // fallback is observable only when the router already measured it or the
+  // current OpenCV population itself proves mixed/nested fragmentation.
+  const fragmentEvidence=src.length>=5&&
+    (nestedPairs>0||areaSpread>=1.8||localMixed);
+  if(!(cached&&cached.applied)&&!fragmentEvidence){
+    return {boxes:src,debug:{
+      version:'v1144-opencv-coherent-gutter-population-owner',
+      applied:false,reason:'no-opencv-fragment-evidence-no-extra-source-scan',
+      beforeCount:src.length,afterCount:src.length,gutterCount:0,
+      rows:0,cols:0,covered:0,nestedPairs,
+      areaSpread:+areaSpread.toFixed(3),localMixed,
+      physicalFrameVeto:{applied:false,reason:'not-evaluated'},
+      padding:false,resize:false
+    }};
+  }
+  const gutter=cached&&cached.applied
+    ?cached:__detectSharedBackgroundGutterGridV903(sourceImage);
+  const proposed=(gutter&&gutter.applied&&Array.isArray(gutter.boxes))
+    ?gutter.boxes:[];
+  const frameProof=proposed.length
+    ?__proveRepeatedPhysicalPopulationV1075(gutter,__sharedLocalClosedV854)
+    :{applied:false,reason:'no-gutter-population'};
+  const inside=(r,a)=>{
+    const cx=r.x+r.w/2,cy=r.y+r.h/2;
+    return cx>=a.x&&cx<=a.x+a.w&&cy>=a.y&&cy<=a.y+a.h;
+  };
+  const covered=proposed.filter(a=>src.some(r=>inside(r,a))).length;
+  const fragmented=proposed.length>=2&&covered===proposed.length&&
+    src.length>=proposed.length+1;
+  const applied=!!(gutter&&gutter.applied&&!frameProof.applied&&fragmented);
+  return {boxes:applied?proposed.map(r=>({...r})):src,debug:{
+    version:'v1144-opencv-coherent-gutter-population-owner',
+    applied,
+    reason:applied?'opencv-internal-fragments-replaced-by-source-gutter-matrix':
+      frameProof.applied?'matching-physical-frame-population-veto':
+      !(gutter&&gutter.applied)?(gutter&&gutter.reason||'shared-gutter-not-proven'):
+      'opencv-fragment-coverage-not-proven',
+    beforeCount:src.length,afterCount:applied?proposed.length:src.length,
+    gutterCount:proposed.length,rows:Number(gutter&&gutter.rows)||0,
+    cols:Number(gutter&&gutter.cols)||0,covered,nestedPairs,
+    areaSpread:+areaSpread.toFixed(3),localMixed,
+    physicalFrameVeto:frameProof,padding:false,resize:false
+  }};
+};
+const __sharedGutterReconciledV1144=
+  __reconcileSharedGutterPopulationV1144(cvBoxes);
+cvBoxes=__sharedGutterReconciledV1144.boxes;
+window.__OPENCV_COHERENT_GUTTER_OWNERSHIP_V1144__=
+  __sharedGutterReconciledV1144.debug;
+__stageLogV236('OPENCV_COHERENT_GUTTER_OWNERSHIP_V1144',
+  __sharedGutterReconciledV1144.debug);
+
 // V892: AUTO evaluates the same OpenCV candidate family as explicit OpenCV.
 // Run the source-only island proof lazily after ordinary OpenCV has produced a
 // potentially fragmented population; GRID candidates are not read here.
@@ -9718,7 +9799,7 @@ function __detectRepeatedSheetGridWithGutterFallbackV903(img){
 }
 
 function __detectSharedBackgroundGutterGridV903(img){
-  const out={version:'v903-shared-background-gutter-grid',applied:false,reason:'init',boxes:[]};
+  const out={version:'v1144-colour-coherent-shared-background-gutter-grid',applied:false,reason:'init',boxes:[]};
   try{
     if(!img||!img.width||!img.height)return {...out,reason:'no-image'};
     const W=img.width,H=img.height,maxSide=1200,scale=Math.min(1,maxSide/Math.max(W,H));
@@ -9730,14 +9811,6 @@ function __detectSharedBackgroundGutterGridV903(img){
     const med=a=>{const z=(a||[]).filter(Number.isFinite).sort((x,y)=>x-y);return z.length?z[Math.floor(z.length/2)]:0;};
     const quant=(a,p)=>{const z=(a||[]).filter(Number.isFinite).sort((x,y)=>x-y);return z.length?z[Math.max(0,Math.min(z.length-1,Math.round((z.length-1)*p)))]:0;};
     const pixel=(x,y)=>{const p=(y*sw+x)*4;return {r:d[p],g:d[p+1],b:d[p+2],l:(d[p]+d[p+1]+d[p+2])/3};};
-    const groupFlags=flags=>{
-      const z=[];let a=-1;
-      for(let i=0;i<=flags.length;i++){
-        if(i<flags.length&&flags[i]){if(a<0)a=i;continue;}
-        if(a>=0){z.push({a,b:i-1,n:i-a,c:(a+i-1)/2});a=-1;}
-      }
-      return z;
-    };
     const lineStats=(axis,index)=>{
       const ls=[],rs=[],gs=[],bs=[],step=Math.max(1,Math.floor((axis==='x'?sh:sw)/900));
       const n=axis==='x'?sh:sw;
@@ -9754,51 +9827,86 @@ function __detectSharedBackgroundGutterGridV903(img){
     };
     const xStats=Array.from({length:sw},(_,x)=>lineStats('x',x));
     const yStats=Array.from({length:sh},(_,y)=>lineStats('y',y));
-    const minBand=Math.max(3,Math.round(Math.min(sw,sh)*.009));
+    // V1144: an image separator and a card's own edge margin may both be
+    // full-axis, low-variation, and extreme in tone.  The former V903 grouped
+    // consecutive extreme lines without observing their colour transition,
+    // so an adjacent white separator and black card margin either became one
+    // thick passage or two incompatible passages.  Once V903 rejected that
+    // source geometry, ordinary OpenCV was free to publish closed boxes inside
+    // the card as fragments.
+    //
+    // Build atomic passages by splitting at a measured full-line colour jump,
+    // then solve both axes from one colour-coherent family whose passages
+    // partition the sheet into repeated spans.  No card count, orientation,
+    // colour value, filename, or sample dimension is assumed.
+    const minBand=Math.max(2,Math.round(Math.min(sw,sh)*.0025));
     const maxBand=Math.max(minBand+1,Math.round(Math.min(sw,sh)*.12));
-    const rawX=groupFlags(xStats.map(q=>q.uniform&&q.extreme)).filter(q=>q.n>=minBand&&q.n<=maxBand);
-    const rawY=groupFlags(yStats.map(q=>q.uniform&&q.extreme)).filter(q=>q.n>=minBand&&q.n<=maxBand);
-    const internalX=rawX.filter(q=>q.a>0&&q.b<sw-1);
-    const internalY=rawY.filter(q=>q.a>0&&q.b<sh-1);
-    if(!internalX.length||!internalY.length)return {...out,reason:'shared-gutter-missing-on-one-axis',xBands:internalX.length,yBands:internalY.length};
-    if(internalX.length>19||internalY.length>19)return {...out,reason:'shared-gutter-axis-overcomplex',xBands:internalX.length,yBands:internalY.length};
-
-    const allBands=internalX.map(q=>({...q,axis:'x',stats:xStats})).concat(internalY.map(q=>({...q,axis:'y',stats:yStats})));
-    const bandColours=allBands.map(q=>{
-      const s=[];for(let i=q.a;i<=q.b;i++)s.push(q.stats[i]);
-      return {l:med(s.map(v=>v.l)),r:med(s.map(v=>v.r)),g:med(s.map(v=>v.g)),b:med(s.map(v=>v.b))};
-    });
-    const bg={l:med(bandColours.map(v=>v.l)),r:med(bandColours.map(v=>v.r)),g:med(bandColours.map(v=>v.g)),b:med(bandColours.map(v=>v.b))};
-    const colourDistance=v=>Math.max(Math.abs(v.r-bg.r),Math.abs(v.g-bg.g),Math.abs(v.b-bg.b),Math.abs(v.l-bg.l));
-    if(bandColours.some(v=>colourDistance(v)>16))return {...out,reason:'gutter-colour-family-not-shared',bgRGB:[bg.r,bg.g,bg.b].map(v=>+v.toFixed(1))};
-
-    // A continuous outer background margin is not a picture cell. Trim it
-    // before the internal passages partition the usable sheet.
-    const leadX=rawX.find(q=>q.a===0),tailX=rawX.find(q=>q.b===sw-1);
-    const leadY=rawY.find(q=>q.a===0),tailY=rawY.find(q=>q.b===sh-1);
-    const xStart=leadX?leadX.b+1:0,xEnd=tailX?tailX.a-1:sw-1;
-    const yStart=leadY?leadY.b+1:0,yEnd=tailY?tailY.a-1:sh-1;
+    const colourDelta=(a,b)=>Math.max(
+      Math.abs(a.r-b.r),Math.abs(a.g-b.g),Math.abs(a.b-b.b),Math.abs(a.l-b.l));
+    const atomicBands=stats=>{
+      const z=[];let start=-1,items=[],previous=null;
+      const publish=end=>{
+        if(start<0)return;
+        const q={a:start,b:end,n:end-start+1,c:(start+end)/2,
+          colour:{
+            l:med(items.map(v=>v.l)),r:med(items.map(v=>v.r)),
+            g:med(items.map(v=>v.g)),b:med(items.map(v=>v.b))
+          }};
+        if(q.n>=minBand&&q.n<=maxBand)z.push(q);
+      };
+      for(let i=0;i<=stats.length;i++){
+        const active=i<stats.length&&stats[i].uniform&&stats[i].extreme;
+        const current=active?stats[i]:null;
+        const split=active&&previous&&colourDelta(current,previous)>36;
+        if(active&&start<0){start=i;items=[current];}
+        else if(active&&!split)items.push(current);
+        if((!active||split)&&start>=0){
+          publish(i-1);
+          if(active){start=i;items=[current];}else{start=-1;items=[];}
+        }
+        previous=current;
+      }
+      return z;
+    };
+    const bandFamilies=bands=>{
+      const z=[];
+      for(const band of bands){
+        let family=z.find(g=>colourDelta(band.colour,g.colour)<=16);
+        if(!family){family={bands:[],colour:{...band.colour}};z.push(family);}
+        family.bands.push(band);
+        family.colour={
+          l:med(family.bands.map(q=>q.colour.l)),
+          r:med(family.bands.map(q=>q.colour.r)),
+          g:med(family.bands.map(q=>q.colour.g)),
+          b:med(family.bands.map(q=>q.colour.b))
+        };
+      }
+      return z;
+    };
     const spans=(start,end,bands)=>{
       const z=[];let p=start;
       for(const b of bands){if(b.a>p)z.push({a:p,b:b.a-1,n:b.a-p});p=b.b+1;}
       if(p<=end)z.push({a:p,b:end,n:end-p+1});
       return z;
     };
-    const xs=spans(xStart,xEnd,internalX),ys=spans(yStart,yEnd,internalY);
-    if(xs.length<2||ys.length<2)return {...out,reason:'matrix-needs-both-repeated-axes',rows:ys.length,cols:xs.length};
-    const xMed=med(xs.map(q=>q.n)),yMed=med(ys.map(q=>q.n));
-    const xSpread=(Math.max(...xs.map(q=>q.n))-Math.min(...xs.map(q=>q.n)))/Math.max(1,xMed);
-    const ySpread=(Math.max(...ys.map(q=>q.n))-Math.min(...ys.map(q=>q.n)))/Math.max(1,yMed);
-    if(xSpread>.035||ySpread>.035)return {...out,reason:'gutter-partition-cell-size-not-repeated',rows:ys.length,cols:xs.length,xSpanSpread:+xSpread.toFixed(4),ySpanSpread:+ySpread.toFixed(4)};
-    const xGapSpread=internalX.length>1?(Math.max(...internalX.map(q=>q.n))-Math.min(...internalX.map(q=>q.n)))/Math.max(1,med(internalX.map(q=>q.n))):0;
-    const yGapSpread=internalY.length>1?(Math.max(...internalY.map(q=>q.n))-Math.min(...internalY.map(q=>q.n)))/Math.max(1,med(internalY.map(q=>q.n))):0;
-    if(xGapSpread>.22||yGapSpread>.22)return {...out,reason:'gutter-thickness-not-repeated',xGapSpread:+xGapSpread.toFixed(4),yGapSpread:+yGapSpread.toFixed(4)};
-
-    // Every inferred slot must contain substantial image information, including
-    // narrow samples beside all four owned boundaries. This rejects free layouts
-    // whose unrelated empty passages happen to cross the whole sheet.
-    const differs=p=>Math.max(Math.abs(p.r-bg.r),Math.abs(p.g-bg.g),Math.abs(p.b-bg.b),Math.abs(p.l-bg.l))>20;
-    const occupancy=(xr,yr)=>{
+    const axisModel=(family,length)=>{
+      const raw=family.bands.slice().sort((a,b)=>a.a-b.a);
+      const internal=raw.filter(q=>q.a>0&&q.b<length-1);
+      if(!internal.length||internal.length>19)return null;
+      const lead=raw.find(q=>q.a===0),tail=raw.find(q=>q.b===length-1);
+      const start=lead?lead.b+1:0,end=tail?tail.a-1:length-1;
+      const cells=spans(start,end,internal);
+      if(cells.length<2)return null;
+      const cellMed=med(cells.map(q=>q.n));
+      const spanSpread=(Math.max(...cells.map(q=>q.n))-Math.min(...cells.map(q=>q.n)))/Math.max(1,cellMed);
+      const gapSpread=internal.length>1
+        ?(Math.max(...internal.map(q=>q.n))-Math.min(...internal.map(q=>q.n)))/Math.max(1,med(internal.map(q=>q.n)))
+        :0;
+      if(spanSpread>.035||gapSpread>.22)return null;
+      return {raw,internal,cells,spanSpread,gapSpread,colour:family.colour};
+    };
+    const occupancy=(xr,yr,bg)=>{
+      const differs=p=>colourDelta(p,bg)>20;
       let hit=0,n=0,edgeHit=0,edgeN=0;
       const sx=Math.max(1,Math.floor(xr.n/34)),sy=Math.max(1,Math.floor(yr.n/28));
       for(let y=yr.a;y<=yr.b;y+=sy)for(let x=xr.a;x<=xr.b;x+=sx){n++;if(differs(pixel(x,y)))hit++;}
@@ -9809,11 +9917,42 @@ function __detectSharedBackgroundGutterGridV903(img){
       for(const y of yLines)for(let x=xr.a;x<=xr.b;x+=sx){edgeN++;if(differs(pixel(x,y)))edgeHit++;}
       return {fill:hit/Math.max(1,n),edge:edgeHit/Math.max(1,edgeN)};
     };
-    const slotAudit=[];
-    for(let row=0;row<ys.length;row++)for(let col=0;col<xs.length;col++){
-      const q=occupancy(xs[col],ys[row]);slotAudit.push({row,col,fill:q.fill,edge:q.edge});
+    const xModels=bandFamilies(atomicBands(xStats)).map(g=>axisModel(g,sw)).filter(Boolean);
+    const yModels=bandFamilies(atomicBands(yStats)).map(g=>axisModel(g,sh)).filter(Boolean);
+    const geometryPairs=[];
+    for(const xm of xModels)for(const ym of yModels){
+      const colourGap=colourDelta(xm.colour,ym.colour);
+      if(colourGap>16)continue;
+      const bg={
+        l:med([xm.colour.l,ym.colour.l]),r:med([xm.colour.r,ym.colour.r]),
+        g:med([xm.colour.g,ym.colour.g]),b:med([xm.colour.b,ym.colour.b])
+      };
+      const audit=[];
+      for(let row=0;row<ym.cells.length;row++)for(let col=0;col<xm.cells.length;col++){
+        const q=occupancy(xm.cells[col],ym.cells[row],bg);
+        audit.push({row,col,fill:q.fill,edge:q.edge});
+      }
+      geometryPairs.push({xm,ym,bg,audit,colourGap,
+        occupied:audit.every(q=>q.fill>=.16&&q.edge>=.07),
+        cells:xm.cells.length*ym.cells.length,
+        score:xm.spanSpread+ym.spanSpread+
+          .2*(xm.gapSpread+ym.gapSpread)+colourGap/255});
     }
-    if(slotAudit.some(q=>q.fill<.16||q.edge<.07))return {...out,reason:'complete-slot-occupancy-not-proven',rows:ys.length,cols:xs.length,minFill:+Math.min(...slotAudit.map(q=>q.fill)).toFixed(3),minEdge:+Math.min(...slotAudit.map(q=>q.edge)).toFixed(3)};
+    if(!geometryPairs.length)return {...out,reason:'no-colour-coherent-repeated-gutter-family-v1144',xModels:xModels.length,yModels:yModels.length,minBand};
+    const occupiedPairs=geometryPairs.filter(q=>q.occupied)
+      .sort((a,b)=>a.score-b.score||b.cells-a.cells);
+    if(!occupiedPairs.length){
+      const q=geometryPairs.sort((a,b)=>a.score-b.score)[0];
+      return {...out,reason:'complete-slot-occupancy-not-proven',rows:q.ym.cells.length,cols:q.xm.cells.length,minFill:+Math.min(...q.audit.map(v=>v.fill)).toFixed(3),minEdge:+Math.min(...q.audit.map(v=>v.edge)).toFixed(3)};
+    }
+    const selected=occupiedPairs[0];
+    const rawX=selected.xm.raw,rawY=selected.ym.raw;
+    const internalX=selected.xm.internal,internalY=selected.ym.internal;
+    const xs=selected.xm.cells,ys=selected.ym.cells,bg=selected.bg;
+    const xSpread=selected.xm.spanSpread,ySpread=selected.ym.spanSpread;
+    const xGapSpread=selected.xm.gapSpread,yGapSpread=selected.ym.gapSpread;
+    const slotAudit=selected.audit;
+    const colourDistance=v=>colourDelta(v,bg);
 
     // V921: a passage that crosses the sheet proves the shared gutter, but its
     // last JPEG/antialias row or column can end one pixel later in only one
@@ -9876,7 +10015,7 @@ function __detectSharedBackgroundGutterGridV903(img){
     const sourceWidths=[...new Set(boxes.map(q=>q.w))].sort((a,b)=>b-a);
     const sourceHeights=[...new Set(boxes.map(q=>q.h))].sort((a,b)=>b-a);
     return {
-      ...out,applied:true,reason:'strict-shared-background-gutter-grid-v903',
+      ...out,applied:true,reason:'strict-colour-coherent-shared-background-gutter-grid-v1144',
       count:boxes.length,rows:ys.length,cols:xs.length,boxes,
       bgRGB:[bg.r,bg.g,bg.b].map(v=>+v.toFixed(1)),
       xSpanSpread:+xSpread.toFixed(4),ySpanSpread:+ySpread.toFixed(4),
@@ -9884,6 +10023,13 @@ function __detectSharedBackgroundGutterGridV903(img){
       slotMinFill:+Math.min(...slotAudit.map(q=>q.fill)).toFixed(3),
       slotMinEdge:+Math.min(...slotAudit.map(q=>q.edge)).toFixed(3),
       sourceCellWidths:sourceWidths,sourceCellHeights:sourceHeights,
+      atomicGutterFamilyV1144:{
+        minBand,colourGap:+selected.colourGap.toFixed(3),
+        geometryScore:+selected.score.toFixed(5),
+        candidatePairs:geometryPairs.length,occupiedPairs:occupiedPairs.length,
+        xBands:internalX.map(q=>({a:q.a,b:q.b,n:q.n})),
+        yBands:internalY.map(q=>({a:q.a,b:q.b,n:q.n}))
+      },
       localStartRefinements,
       commonSafeSize:null,
       coordinateOwner:'v921-frameless-shared-gutter-local-transition-coordinate'
