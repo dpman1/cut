@@ -1761,7 +1761,7 @@ body.dpc-tools-open .dpc-tools-panel{display:block}
 <canvas id="work" style="display:none"></canvas>
 
 <script>
-window.__FRAME_CUT_BUILD__='V1144_COHERENT_GUTTER_FAMILY';
+window.__FRAME_CUT_BUILD__='V1147_LEADING_EDGE_READING_ORDER';
 let sourceImage = null;
 let sourceImages = [];
 let sourceFiles = [];
@@ -9449,6 +9449,60 @@ window.__OPENCV_COHERENT_GUTTER_OWNERSHIP_V1144__=
 __stageLogV236('OPENCV_COHERENT_GUTTER_OWNERSHIP_V1144',
   __sharedGutterReconciledV1144.debug);
 
+// V1145: a frameless contact sheet does not always contain a repeated matrix
+// or a visible gutter.  Landing-page cards and some storyboard exports are
+// placed edge-to-edge; their only source boundary is a sustained background
+// transition spanning the complete orthogonal axis.  Contour-based OpenCV can
+// then publish UI boxes inside a card, while V903 correctly refuses the
+// non-repeated cell sizes.
+//
+// Treat that geometry as its own source-coordinate owner.  X and Y use the
+// same detector: X-only means side-by-side cards, Y-only means stacked cards,
+// and two proven axes form a grid.  A thin separator/frame produces two nearby
+// transitions and is rejected as a band; a physical four-side frame population
+// keeps the established V491/V1134 owner.  Successful cells are frameless
+// source spans, so frame keep/remove and residual-frame post-processing must
+// not alter their coordinates.
+const __adjacentBoundaryPhysicalFrameVetoV1145=!!(
+  (__opencvV491PopulationV907&&__opencvV491PopulationV907.debug&&
+   __opencvV491PopulationV907.debug.applied)||
+  (__opencvMixedHeightPopulationV1133&&
+   __opencvMixedHeightPopulationV1133.applied)
+);
+const __adjacentBoundaryCandidateV1145=
+  __sharedGutterReconciledV1144.debug.applied
+    ?{version:'v1145-adjacent-boundary-sections',applied:false,
+      reason:'v1144-repeated-gutter-owner-precedes-adjacent-boundary',boxes:[]}
+    :__detectAdjacentBoundarySectionsV1145(sourceImage);
+const __adjacentBoundarySectionsV1145={
+  ...__adjacentBoundaryCandidateV1145,
+  applied:!!(__adjacentBoundaryCandidateV1145.applied&&
+    !__adjacentBoundaryPhysicalFrameVetoV1145),
+  reason:__adjacentBoundaryPhysicalFrameVetoV1145
+    ?'physical-four-side-frame-population-veto'
+    :__adjacentBoundaryCandidateV1145.reason,
+  physicalFrameVeto:__adjacentBoundaryPhysicalFrameVetoV1145,
+  padding:false,resize:false
+};
+if(__adjacentBoundarySectionsV1145.applied&&
+   (engineMode==='auto'||engineMode==='opencv')){
+  cvBoxes=(__adjacentBoundarySectionsV1145.boxes||[]).map(r=>({...r,
+    __engine:'opencv-frameless-adjacent-boundary-v1145',
+    __framelessGutterSourceOwnedV919:true,
+    __adjacentBoundarySourceOwnedV1145:true
+  }));
+}
+window.__FRAMELESS_ADJACENT_BOUNDARY_SECTIONS_V1145__=
+  __adjacentBoundarySectionsV1145;
+__stageLogV236('FRAMELESS_ADJACENT_BOUNDARY_SECTIONS_V1145',{
+  applied:__adjacentBoundarySectionsV1145.applied,
+  reason:__adjacentBoundarySectionsV1145.reason,
+  count:(__adjacentBoundarySectionsV1145.boxes||[]).length,
+  rows:__adjacentBoundarySectionsV1145.rows||0,
+  cols:__adjacentBoundarySectionsV1145.cols||0,
+  physicalFrameVeto:__adjacentBoundaryPhysicalFrameVetoV1145
+});
+
 // V892: AUTO evaluates the same OpenCV candidate family as explicit OpenCV.
 // Run the source-only island proof lazily after ordinary OpenCV has produced a
 // potentially fragmented population; GRID candidates are not read here.
@@ -9796,6 +9850,205 @@ function __detectRepeatedSheetGridWithGutterFallbackV903(img){
         xSpanSpread:gutter.xSpanSpread,ySpanSpread:gutter.ySpanSpread}
       :{applied:false,reason:'no-gutter-result'}
   };
+}
+
+function __detectAdjacentBoundarySectionsV1145(img){
+  const out={version:'v1145-axis-neutral-adjacent-boundary-sections',
+    applied:false,reason:'init',boxes:[],padding:false,resize:false};
+  try{
+    if(!img||!img.width||!img.height)return {...out,reason:'no-image'};
+    const W=img.width,H=img.height,maxSide=2200;
+    const scale=Math.min(1,maxSide/Math.max(W,H));
+    const sw=Math.max(1,Math.round(W*scale));
+    const sh=Math.max(1,Math.round(H*scale));
+    const c=document.createElement('canvas');c.width=sw;c.height=sh;
+    const cx=c.getContext('2d',{willReadFrequently:true});
+    cx.imageSmoothingEnabled=false;cx.drawImage(img,0,0,sw,sh);
+    const d=cx.getImageData(0,0,sw,sh).data;
+    const med=a=>{const z=(a||[]).filter(Number.isFinite).sort((x,y)=>x-y);return z.length?z[Math.floor(z.length/2)]:0;};
+    const pixel=(x,y)=>{const p=(y*sw+x)*4;return [d[p],d[p+1],d[p+2]];};
+    const colourDelta=(a,b)=>Math.max(Math.abs(a[0]-b[0]),Math.abs(a[1]-b[1]),Math.abs(a[2]-b[2]));
+    const componentMedian=rows=>{
+      if(!rows.length)return [0,0,0];
+      return [med(rows.map(q=>q[0])),med(rows.map(q=>q[1])),med(rows.map(q=>q[2]))];
+    };
+    const sigMedian=rows=>{
+      if(!rows.length)return [0,0,0,0,0,0];
+      return Array.from({length:6},(_,i)=>med(rows.map(q=>q[i])));
+    };
+    const sigSideDelta=(a,b,side)=>Math.max(...[0,1,2].map(i=>Math.abs(a[side*3+i]-b[side*3+i])));
+
+    const analyseAxis=axis=>{
+      const L=axis==='x'?sw:sh,C=axis==='x'?sh:sw;
+      const k=Math.max(2,Math.min(5,Math.round(L*.0015)));
+      const edgeN=Math.max(2,Math.round(C*.08));
+      const crossStep=Math.max(1,Math.floor(C/720));
+      const minSpan=Math.max(24,Math.round(L*.024));
+      const at=(i,q)=>axis==='x'?pixel(i,q):pixel(q,i);
+      const lineSignature=i=>{
+        const a=[],b=[];
+        for(let q=0;q<edgeN;q++)a.push(at(i,q));
+        for(let q=Math.max(0,C-edgeN);q<C;q++)b.push(at(i,q));
+        const am=componentMedian(a),bm=componentMedian(b);
+        return [...am,...bm];
+      };
+      const signatures=Array.from({length:L},(_,i)=>lineSignature(i));
+      const raw=[];
+      for(let i=k;i<L-k;i++){
+        // Cheap first refusal: a real source-spanning boundary must change at
+        // both orthogonal page edges.  Most ordinary storyboard rows stop
+        // here, so the full cross-axis audit is paid only near a plausible
+        // contact boundary.
+        const edgeWindowDelta=Math.min(
+          sigSideDelta(signatures[i-k],signatures[i+k-1],0),
+          sigSideDelta(signatures[i-k],signatures[i+k-1],1));
+        if(edgeWindowDelta<5)continue;
+        const deltas=[],left=[],right=[];
+        for(let q=0;q<C;q+=crossStep){
+          const v=colourDelta(at(i-k,q),at(i+k-1,q));
+          deltas.push(v);
+          if(q<edgeN)left.push(v);
+          if(q>=C-edgeN)right.push(v);
+        }
+        const support=deltas.filter(v=>v>=5).length/Math.max(1,deltas.length);
+        const leftSupport=left.filter(v=>v>=5).length/Math.max(1,left.length);
+        const rightSupport=right.filter(v=>v>=5).length/Math.max(1,right.length);
+        const medianDelta=med(deltas);
+        const edgeSupport=Math.min(leftSupport,rightSupport);
+        if(support>=.54&&edgeSupport>=.80&&medianDelta>=5){
+          raw.push({i,support,edgeSupport,medianDelta,
+            score:medianDelta*(.55*support+.45*edgeSupport)});
+        }
+      }
+      if(!raw.length)return {axis,applied:false,reason:'no-source-spanning-transitions',boundaries:[],rawCount:0,k,minSpan};
+
+      const clusters=[];
+      for(const q of raw){
+        const g=clusters[clusters.length-1];
+        if(g&&q.i-g[g.length-1].i<=Math.max(2,k*2))g.push(q);
+        else clusters.push([q]);
+      }
+      const refined=[];
+      for(const g of clusters){
+        const lo=g[0].i,hi=g[g.length-1].i;
+        const preA=Math.max(0,lo-k*3),preB=Math.max(preA+1,lo-k);
+        const postA=Math.min(L-1,hi+k),postB=Math.min(L,hi+k*3+1);
+        const pre=sigMedian(signatures.slice(preA,preB));
+        const post=sigMedian(signatures.slice(postA,postB));
+        const sideDelta=Math.min(sigSideDelta(pre,post,0),sigSideDelta(pre,post,1));
+        if(sideDelta<5)continue;
+        const a=Math.max(1,lo-k),b=Math.min(L-1,hi+k);
+        let best=a,bestCost=Infinity;
+        for(let cut=a;cut<=b;cut++){
+          let cost=0;
+          for(let i=a;i<cut;i++)cost+=sigSideDelta(signatures[i],pre,0)+sigSideDelta(signatures[i],pre,1);
+          for(let i=cut;i<=b;i++)cost+=sigSideDelta(signatures[i],post,0)+sigSideDelta(signatures[i],post,1);
+          if(cost<bestCost){bestCost=cost;best=cut;}
+        }
+        const strongest=g.slice().sort((a,b)=>b.score-a.score)[0];
+        refined.push({i:best,sideDelta,score:strongest.score,
+          support:strongest.support,edgeSupport:strongest.edgeSupport});
+      }
+      let boundaries=[...new Set(refined.map(q=>q.i))].sort((a,b)=>a-b)
+        .filter(v=>v>=minSpan&&L-v>=minSpan);
+      // A separator, gutter, or frame stroke owns two transitions enclosing a
+      // narrow band.  Do not select either edge as a frameless contact boundary.
+      const paired=new Set();
+      for(let i=0;i<boundaries.length-1;i++){
+        if(boundaries[i+1]-boundaries[i]<minSpan){paired.add(i);paired.add(i+1);i++;}
+      }
+      const pairedBands=[];
+      boundaries.forEach((v,i)=>{if(paired.has(i))pairedBands.push(v);});
+      boundaries=boundaries.filter((v,i)=>!paired.has(i));
+      if(!boundaries.length)return {axis,applied:false,
+        reason:pairedBands.length?'only-thin-separator-or-frame-bands':'no-safe-internal-boundary',
+        boundaries:[],rawCount:raw.length,pairedBands,k,minSpan};
+
+      const cuts=[0,...boundaries,L];
+      const segments=[];
+      for(let i=0;i<cuts.length-1;i++)segments.push({a:cuts[i],b:cuts[i+1]-1,n:cuts[i+1]-cuts[i]});
+      if(segments.some(q=>q.n<minSpan))return {axis,applied:false,
+        reason:'minimum-card-span-not-proven',boundaries,segments,rawCount:raw.length,pairedBands,k,minSpan};
+      // V1146: one observed change point is not by itself proof that the
+      // whole axis has been partitioned.  If it isolates only a small edge
+      // section, the much larger remainder may still contain several cards
+      // whose boundaries do not span both page edges.  Publishing those two
+      // spans as a complete result caused GRID to replace its own 2-D lattice
+      // with one short strip plus one merged remainder.  A single-transition
+      // owner is therefore valid only when both sides occupy a substantive
+      // part of the source.  Multi-transition contact strips keep their
+      // independently observed boundaries and are unaffected.
+      if(segments.length===2){
+        const shorter=Math.min(segments[0].n,segments[1].n);
+        const sourceShare=shorter/Math.max(1,L);
+        if(sourceShare<.30)return {axis,applied:false,
+          reason:'single-transition-incomplete-axis-partition',boundaries,
+          segments,sourceShare:+sourceShare.toFixed(4),rawCount:raw.length,
+          pairedBands,k,minSpan};
+      }
+      const stability=[];
+      for(const s of segments){
+        const pad=Math.max(2,Math.min(Math.round(s.n*.08),k*3));
+        const start=Math.min(s.b,s.a+pad),end=Math.max(start,s.b-pad);
+        const step=Math.max(1,Math.floor((end-start+1)/120));
+        const rows=[];for(let i=start;i<=end;i+=step)rows.push(signatures[i]);
+        const proto=sigMedian(rows);
+        let left=0,right=0;
+        for(const q of rows){if(sigSideDelta(q,proto,0)<=20)left++;if(sigSideDelta(q,proto,1)<=20)right++;}
+        stability.push({a:s.a,b:s.b,n:s.n,
+          left:left/Math.max(1,rows.length),right:right/Math.max(1,rows.length)});
+      }
+      const minStability=Math.min(...stability.map(q=>Math.min(q.left,q.right)));
+      if(minStability<.62)return {axis,applied:false,
+        reason:'segment-edge-background-not-stable',boundaries,segments,stability,
+        minStability,rawCount:raw.length,pairedBands,k,minSpan};
+      return {axis,applied:true,reason:'source-spanning-direct-background-transitions',
+        boundaries,segments,stability,minStability,rawCount:raw.length,
+        pairedBands,k,minSpan,length:L,cross:C};
+    };
+
+    let x=analyseAxis('x'),y=analyseAxis('y');
+    // A single-axis two-card proof must describe an elongated source.  A
+    // square source may still use both independently proven axes as a grid.
+    if(x.applied&&!y.applied&&sw/Math.max(1,sh)<1.25)x={...x,applied:false,reason:'single-axis-source-not-elongated'};
+    if(y.applied&&!x.applied&&sh/Math.max(1,sw)<1.25)y={...y,applied:false,reason:'single-axis-source-not-elongated'};
+    if(!x.applied&&!y.applied)return {...out,reason:'no-qualified-adjacent-boundary-axis',xAxis:x,yAxis:y};
+    const xCuts=x.applied?[0,...x.boundaries,sw]:[0,sw];
+    const yCuts=y.applied?[0,...y.boundaries,sh]:[0,sh];
+    const scaled=[];
+    for(let row=0;row<yCuts.length-1;row++)for(let col=0;col<xCuts.length-1;col++){
+      const x0=Math.round(xCuts[col]/scale),x1=Math.round(xCuts[col+1]/scale);
+      const y0=Math.round(yCuts[row]/scale),y1=Math.round(yCuts[row+1]/scale);
+      scaled.push({x:x0,y:y0,w:x1-x0,h:y1-y0,row,col});
+    }
+    const occupancy=[];
+    for(const r of scaled){
+      const x0=Math.max(0,Math.round(r.x*scale)),x1=Math.min(sw,Math.round((r.x+r.w)*scale));
+      const y0=Math.max(0,Math.round(r.y*scale)),y1=Math.min(sh,Math.round((r.y+r.h)*scale));
+      const insetX=Math.max(1,Math.round((x1-x0)*.025)),insetY=Math.max(1,Math.round((y1-y0)*.025));
+      const bgSamples=[];
+      for(const yy of [y0+insetY,Math.max(y0,y1-1-insetY)])for(const xx of [x0+insetX,Math.max(x0,x1-1-insetX)])bgSamples.push(pixel(Math.min(sw-1,xx),Math.min(sh-1,yy)));
+      const bg=componentMedian(bgSamples),sx=Math.max(1,Math.floor((x1-x0)/28)),sy=Math.max(1,Math.floor((y1-y0)/28));
+      let hit=0,n=0;
+      for(let yy=y0;yy<y1;yy+=sy)for(let xx=x0;xx<x1;xx+=sx){n++;if(colourDelta(pixel(xx,yy),bg)>14)hit++;}
+      occupancy.push({row:r.row,col:r.col,fill:hit/Math.max(1,n)});
+    }
+    const minFill=Math.min(...occupancy.map(q=>q.fill));
+    if(minFill<.012)return {...out,reason:'empty-section-between-boundaries',
+      rows:yCuts.length-1,cols:xCuts.length-1,xAxis:x,yAxis:y,
+      occupancy,minFill:+minFill.toFixed(4)};
+    const boxes=scaled.map(r=>({x:r.x,y:r.y,w:r.w,h:r.h,
+      __engine:'opencv-frameless-adjacent-boundary-v1145',
+      __framelessGutterSourceOwnedV919:true,
+      __adjacentBoundarySourceOwnedV1145:true,
+      __cellV1145:{row:r.row,col:r.col,owner:'source-spanning-direct-background-transition'}}));
+    return {...out,applied:true,reason:'strict-axis-neutral-adjacent-boundary-sections-v1145',
+      count:boxes.length,rows:yCuts.length-1,cols:xCuts.length-1,boxes,
+      xAxis:x,yAxis:y,occupancy,minFill:+minFill.toFixed(4),
+      sourceCellWidths:[...new Set(boxes.map(r=>r.w))],
+      sourceCellHeights:[...new Set(boxes.map(r=>r.h))],
+      coordinateOwner:'v1145-source-spanning-direct-background-transition'};
+  }catch(e){return {...out,reason:'exception',error:String(e&&e.message||e)};}
 }
 
 function __detectSharedBackgroundGutterGridV903(img){
@@ -11172,7 +11425,21 @@ async function __resolvePaleGridCanonicalV734(pale,legacyHint){
   return {boxes,selected,diag};
 }
 
-if (engineMode === 'rfee' && __borderlessRuledSheetV972.applied) {
+if (engineMode === 'rfee' && __adjacentBoundarySectionsV1145.applied) {
+  rfeeBoxes=(__adjacentBoundarySectionsV1145.boxes||[]).map(r=>({...r,
+    __engine:'rfee-frameless-adjacent-boundary-v1145',
+    __framelessGutterSourceOwnedV919:true,
+    __adjacentBoundarySourceOwnedV1145:true
+  }));
+  filtered=rfeeBoxes;
+  chosenEngine='rfee';
+  window.__GRID_FRAMELESS_ADJACENT_BOUNDARY_FASTPATH_V1145__={
+    applied:true,reason:__adjacentBoundarySectionsV1145.reason,
+    count:rfeeBoxes.length,rows:__adjacentBoundarySectionsV1145.rows,
+    cols:__adjacentBoundarySectionsV1145.cols,
+    rfEEExecuted:false,padding:false,resize:false
+  };
+} else if (engineMode === 'rfee' && __borderlessRuledSheetV972.applied) {
   rfeeBoxes=__borderlessRuledSheetV972.boxes.map(r=>({...r,__engine:'rfee-borderless-ruled-sheet-v972'}));
   filtered=rfeeBoxes;
   chosenEngine='rfee-borderless-ruled-sheet-v972';
@@ -11621,6 +11888,12 @@ if (engineMode === 'rfee' && __borderlessRuledSheetV972.applied) {
   // two extra fragments.  GRID/RFEE data is neither read nor compared.
   filtered = cvBoxes;
   chosenEngine = 'opencv';
+} else if (__adjacentBoundarySectionsV1145.applied) {
+  filtered=cvBoxes;
+  chosenEngine='opencv';
+  window.__AUTO_DECISION__={selected:'opencv',
+    reason:'source-spanning-adjacent-boundary-sections-v1145',
+    count:filtered.length,canonical:true,padding:false,resize:false};
 } else if (__detachedBlack4x2V801.applied) {
   filtered=__detachedBlack4x2V801.boxes.map(r=>({...r}));
   rfeeBoxes=filtered;
@@ -18239,6 +18512,88 @@ if(__twoColumnOrderOwnedV975){
   };
 }
 
+// V1147: reading direction is anchored by the leading physical edge, not by
+// a rectangle's centre.  A frame spanning two columns has its centre between
+// those columns; centre clustering therefore invented a new column and placed
+// a top-left wide frame after the ordinary first-column frames.  Prove the
+// spanning geometry against repeated ordinary cells, then assign the frame to
+// the column/row where its leading edge actually starts.  Detection and crop
+// coordinates are never changed.
+function __orderProvenSpansByLeadingEdgeV1147(boxes,mode){
+  const src=(boxes||[]).slice();
+  const out={version:'v1147-proven-span-leading-edge-order',applied:false,
+    reason:'not-qualified',mode,count:src.length,ordered:src,spans:[],anchors:[]};
+  if(src.length<4)return {...out,reason:'too-few-cuts'};
+  const med=a=>{const s=a.filter(Number.isFinite).sort((x,y)=>x-y);return s.length?s[Math.floor(s.length/2)]:0;};
+  const vertical=mode==='vertical';
+  const primaryStart=r=>vertical?r.x:r.y;
+  const primaryEnd=r=>primaryStart(r)+(vertical?r.w:r.h);
+  const primarySize=r=>vertical?r.w:r.h;
+  const crossSize=r=>vertical?r.h:r.w;
+  const mp=med(src.map(primarySize)),mc=med(src.map(crossSize));
+  if(!(mp>0&&mc>0))return {...out,reason:'no-representative-size'};
+  const ordinary=src.filter(r=>{
+    const p=primarySize(r)/mp,c=crossSize(r)/mc;
+    return p>=.72&&p<=1.28&&c>=.72&&c<=1.28;
+  });
+  if(ordinary.length<3)return {...out,reason:'too-few-ordinary-cells'};
+  const tol=Math.max(3,Math.min(mp*.16,mc*.16));
+  const groups=[];
+  ordinary.slice().sort((a,b)=>primaryStart(a)-primaryStart(b)).forEach(r=>{
+    const v=primaryStart(r);let best=null,bestD=Infinity;
+    for(const g of groups){const d=Math.abs(g.c-v);if(d<=tol&&d<bestD){best=g;bestD=d;}}
+    if(!best){best={c:v,items:[]};groups.push(best);}
+    best.items.push(r);best.c=med(best.items.map(primaryStart));
+  });
+  groups.sort((a,b)=>a.c-b.c);
+  if(groups.length<2)return {...out,reason:'leading-edge-axis-not-repeated'};
+  const anchors=groups.map((g,i)=>({index:i,c:g.c,count:g.items.length}));
+  const spans=[];
+  for(const r of src){
+    if(primarySize(r)<mp*1.55||crossSize(r)<mc*.72||crossSize(r)>mc*1.28)continue;
+    const covered=anchors.filter(a=>a.c>=primaryStart(r)-tol&&a.c+mp<=primaryEnd(r)+tol);
+    if(covered.length<2)continue;
+    const first=covered[0],last=covered[covered.length-1];
+    const leadError=Math.abs(primaryStart(r)-first.c);
+    const trailError=Math.abs(primaryEnd(r)-(last.c+mp));
+    if(leadError>tol||trailError>tol*1.35)continue;
+    spans.push({r,anchor:first.index,covered:covered.map(a=>a.index),
+      leadError:+leadError.toFixed(2),trailError:+trailError.toFixed(2)});
+  }
+  if(!spans.length)return {...out,reason:'no-boundary-aligned-spanning-cut',anchors};
+  const spanMap=new Map(spans.map(s=>[s.r,s]));
+  const anchorOf=r=>{
+    const span=spanMap.get(r);if(span)return span.anchor;
+    let best=0,bestD=Infinity;
+    anchors.forEach(a=>{const d=Math.abs(primaryStart(r)-a.c);if(d<bestD){best=a.index;bestD=d;}});
+    return bestD<=tol*1.5?best:null;
+  };
+  const ordered=src.slice().sort((a,b)=>{
+    const aa=anchorOf(a),bb=anchorOf(b);
+    if(aa!==null&&bb!==null&&aa!==bb)return aa-bb;
+    if((aa!==null)!==(bb!==null)){
+      const d=primaryStart(a)-primaryStart(b);
+      if(d)return d;
+      return aa!==null?-1:1;
+    }
+    if(aa===null&&bb===null){const d=primaryStart(a)-primaryStart(b);if(d)return d;}
+    return vertical
+      ?((a.y-b.y)||(a.x-b.x)||(a.w-b.w))
+      :((a.x-b.x)||(a.y-b.y)||(a.h-b.h));
+  });
+  if(ordered.length!==src.length||new Set(ordered).size!==src.length)
+    return {...out,reason:'order-integrity-failed',anchors};
+  return {...out,applied:true,reason:'boundary-aligned-span-uses-leading-edge-anchor',
+    ordered,anchors,spans:spans.map(s=>({
+      x:s.r.x,y:s.r.y,w:s.r.w,h:s.r.h,anchor:s.anchor,
+      covered:s.covered,leadError:s.leadError,trailError:s.trailError
+    }))};
+}
+const __leadingEdgeOrderV1147=__orderProvenSpansByLeadingEdgeV1147(filtered,mode);
+if(__leadingEdgeOrderV1147.applied)ordered=__leadingEdgeOrderV1147.ordered;
+window.__LEADING_EDGE_READING_ORDER_V1147__={...__leadingEdgeOrderV1147,
+  ordered:__leadingEdgeOrderV1147.ordered.map(r=>({x:r.x,y:r.y,w:r.w,h:r.h}))};
+
 // V459: GRID 완전 격자 좌표 정규화.
 // 결과 캔버스/패딩/리사이즈는 사용하지 않고, 기존 GRID rect와 같은 의미의
 // x/y/w/h만 행·열 대표 경계로 재구성한다.
@@ -22346,6 +22701,20 @@ window.__PHYSICAL_ENDPOINT_ARBITRATION_V1129__={
   normalization:false,padding:false,resize:false
 };
 const __frameContractsV554=ordered.map((r,i)=>{
+  // V1145 consolidates the frameless ownership contract at the first crop
+  // decision. V831/V903 historically reached the same result through their
+  // repeated-grid flags, but a variable-size adjacent section has no repeated
+  // lattice flag by design. The semantic fact is sufficient: these rectangles
+  // already are literal source content spans and contain no frame.
+  if(r&&r.__adjacentBoundarySourceOwnedV1145){
+    const q={x:Math.round(r.x),y:Math.round(r.y),w:Math.round(r.w),h:Math.round(r.h)};
+    return {version:'v1145-adjacent-boundary-source-coordinate',
+      applied:true,reason:'source-spanning-direct-background-transition-v1145',
+      sourceMeasurement:__rawFrameContractsV554[i],outer:{...q},inner:{...q},
+      noFrameCrop:true,framelessGutterSourceOwnedV919:true,
+      adjacentBoundarySourceOwnedV1145:!!r.__adjacentBoundarySourceOwnedV1145,
+      padding:false,resize:false};
+  }
   if(r&&r.__rfeeRepeatedContentOwnedV1090){
     const q={x:Math.round(r.x),y:Math.round(r.y),w:Math.round(r.w),h:Math.round(r.h)};
     return {version:'v1090-rfee-repeated-content-coordinate',applied:true,
