@@ -1761,7 +1761,7 @@ body.dpc-tools-open .dpc-tools-panel{display:block}
 <canvas id="work" style="display:none"></canvas>
 
 <script>
-window.__FRAME_CUT_BUILD__='V1147_LEADING_EDGE_READING_ORDER';
+window.__FRAME_CUT_BUILD__='V1150_SHEET_PARITY_RESULT_DRAG';
 let sourceImage = null;
 let sourceImages = [];
 let sourceFiles = [];
@@ -5722,7 +5722,7 @@ async function __bindCutImageDownloadV482(card,img){
 }
 
 function renumber() {
-const cards = document.querySelectorAll('.card');
+const cards = document.querySelectorAll('#results .card');
 cards.forEach((card, i) => {
 const n = String(i + 1).padStart(3, '0');
 card.querySelector('.num').textContent = n;
@@ -27739,7 +27739,8 @@ card.innerHTML = `
 
 card.querySelector('.del').onclick = () => {
 card.remove();
-renumber();
+if(typeof window.__cutCommitResultOrderV1150==='function') window.__cutCommitResultOrderV1150();
+else renumber();
 };
 
 results.appendChild(card);
@@ -29901,7 +29902,7 @@ try{ window.dispatchEvent(new CustomEvent('__cut_batch_committed_v873')); }catch
 
 // 연속 개별 다운로드 엔진
 downloadAllBtn.onclick = async () => {
-const cards = [...document.querySelectorAll('.card')];
+const cards = [...document.querySelectorAll('#results .card')];
 if (cards.length === 0) {
 alert('먼저 컷을 추출하세요.');
 return;
@@ -29956,6 +29957,114 @@ try{
   window.DpcInAppSave.present({saveType:'zip',confirmedError:true});
 }
 };
+</script>
+
+<style id="dpc-cut-result-order-v1150">
+#results .card{position:relative}
+#results.dpc-sort-active .card{cursor:grab;touch-action:pan-y pinch-zoom;-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}
+#results.dpc-sort-active .card:active{cursor:grabbing}
+#results .card img,#results .card .del{cursor:pointer}
+#results .card.dpc-sort-chosen{opacity:.96;transform:scale(.985);box-shadow:0 4px 14px rgba(0,0,0,.14)}
+#results .card.dpc-sort-ghost{opacity:.22;background:#dfe3e8}
+#results .card.dpc-sort-drag{opacity:.98;box-shadow:0 8px 22px rgba(0,0,0,.18)}
+</style>
+<script id="dpc-cut-result-order-v1150">
+/*
+ * V1150 result ordering contract, adapted directly from SHEET_v112.
+ * - Detection/cropping remains untouched.
+ * - SHEET's Sortable lifecycle, touch thresholds and live sibling displacement
+ *   are preserved. Only image/delete filtering and responsive grid direction
+ *   differ because CUT images retain click-to-save and CUT uses a CSS grid.
+ */
+(function(){
+  'use strict';
+  var list=document.getElementById('results');
+  if(!list)return;
+  var nextId=1;
+  var dragOrderIds=[];
+
+  function cards(){return Array.from(list.children).filter(function(node){return node.classList&&node.classList.contains('card');});}
+  function ensureCard(card){
+    if(!card||!card.classList||!card.classList.contains('card'))return;
+    if(!card.dataset.cutOrderIdV1150)card.dataset.cutOrderIdV1150='cut-'+String(nextId++);
+  }
+  function decorate(){cards().forEach(ensureCard);}
+  function snapshot(){
+    return cards().map(function(card,index){
+      var img=card.querySelector('img');
+      return {id:card.dataset.cutOrderIdV1150,index:index,src:img&&img.src||''};
+    });
+  }
+  function commit(){
+    decorate();
+    var order=snapshot();
+    window.__CUT_RESULT_ORDER_V1150__={version:'v1150-sheet-parity-result-order',ids:order.map(function(v){return v.id;})};
+    try{extracted=order.map(function(v){return v.src;}).filter(Boolean);}catch(_e){}
+    if(typeof renumber==='function')renumber();
+    return order;
+  }
+  window.__cutCommitResultOrderV1150=commit;
+
+  new MutationObserver(function(records){
+    records.forEach(function(record){
+      Array.from(record.addedNodes||[]).forEach(function(node){
+        if(node&&node.nodeType===1){
+          if(node.matches&&node.matches('.card'))ensureCard(node);
+          if(node.querySelectorAll)node.querySelectorAll('.card').forEach(ensureCard);
+        }
+      });
+    });
+    if(!cards().length)window.__CUT_RESULT_ORDER_V1150__={version:'v1150-sheet-parity-result-order',ids:[]};
+  }).observe(list,{childList:true});
+  decorate();
+
+  if(window.Sortable){
+    list.classList.add('dpc-sort-active');
+    new Sortable(list,{disabled:false,
+      animation:150,
+      direction:function(){
+        var columns=String(getComputedStyle(list).gridTemplateColumns||'').trim().split(/\s+/).filter(Boolean).length;
+        return columns>1?'horizontal':'vertical';
+      },
+      handle:'.card',
+      draggable:'.card',
+      preventOnFilter:false,
+      filter:function(event){
+        var target=event.target;
+        if(!target||!target.closest)return true;
+        return !!target.closest('img,.del,a,input,textarea,select,button,[contenteditable]');
+      },
+      chosenClass:'dpc-sort-chosen',
+      ghostClass:'dpc-sort-ghost',
+      dragClass:'dpc-sort-drag',
+      forceFallback:true,
+      fallbackOnBody:true,
+      fallbackTolerance:5,
+      delay:90,
+      delayOnTouchOnly:true,
+      touchStartThreshold:5,
+      swapThreshold:.65,
+      invertSwap:false,
+      onStart:function(e){
+        list.classList.add('dpc-dragging');
+        dragOrderIds=cards().map(function(card){return card.dataset.cutOrderIdV1150;});
+        e.item.dataset.dpcDragUid=String(e.item.dataset.cutOrderIdV1150||'');
+      },
+      onEnd:function(e){
+        list.classList.remove('dpc-dragging');
+        list.__dpcDragEndedUntil=Date.now()+250;
+        var uid=String(e.item.dataset.dpcDragUid||e.item.dataset.cutOrderIdV1150||'');
+        delete e.item.dataset.dpcDragUid;
+        var from=dragOrderIds.indexOf(uid);
+        var to=Math.max(0,Math.min(dragOrderIds.length-1,Number(e.newIndex)||0));
+        if(from>=0&&from!==to){var moved=dragOrderIds.splice(from,1)[0];dragOrderIds.splice(to,0,moved);}
+        var byId=new Map(cards().map(function(card){return [card.dataset.cutOrderIdV1150,card];}));
+        dragOrderIds.forEach(function(id){var card=byId.get(id);if(card)list.appendChild(card);});
+        commit();
+      }
+    });
+  }
+})();
 </script>
 
 
