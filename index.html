@@ -1,4 +1,7 @@
 <!DOCTYPE html>
+<!-- BUILD V1154: physical-frame veto is population-matched to the complete
+     adjacent-section geometry; unrelated internal rectangles cannot suppress
+     occupied-only source-boundary ownership. -->
 <!-- BUILD V1144: colour-coherent shared gutters own frameless card matrices without internal-box fragmentation. -->
 <!-- BUILD V1139: transfer button moved to the logo slot without changing the execution-row height. -->
 <!-- BUILD V1133: preserve native engine identity for mixed-height ownership. -->
@@ -1761,7 +1764,7 @@ body.dpc-tools-open .dpc-tools-panel{display:block}
 <canvas id="work" style="display:none"></canvas>
 
 <script>
-window.__FRAME_CUT_BUILD__='V1150_SHEET_PARITY_RESULT_DRAG';
+window.__FRAME_CUT_BUILD__='V1153_EMPTY_CELL_OWNER_PRECEDENCE';
 let sourceImage = null;
 let sourceImages = [];
 let sourceFiles = [];
@@ -9463,17 +9466,91 @@ __stageLogV236('OPENCV_COHERENT_GUTTER_OWNERSHIP_V1144',
 // keeps the established V491/V1134 owner.  Successful cells are frameless
 // source spans, so frame keep/remove and residual-frame post-processing must
 // not alter their coordinates.
+// V1154: physical-frame evidence is not a page-wide boolean. It may veto the
+// adjacent-section owner only when it describes the very same complete source
+// population. Reuse V1075's existing one-to-one geometry proof and compare the
+// pre-occupancy structural cells. Thus a genuinely framed blank cell remains
+// part of the physical population, while unrelated boxes inside artwork cannot
+// suppress the source-boundary result.
+const __adjacentBoundaryMeasuredV1153=
+  __detectAdjacentBoundarySectionsV1145(sourceImage);
+const __adjacentBoundaryStructuralPopulationV1154={
+  applied:!!__adjacentBoundaryMeasuredV1153.applied,
+  count:Number(__adjacentBoundaryMeasuredV1153.structuralCount)||
+    ((__adjacentBoundaryMeasuredV1153.structuralBoxes||[]).length),
+  rows:Number(__adjacentBoundaryMeasuredV1153.rows)||0,
+  cols:Number(__adjacentBoundaryMeasuredV1153.cols)||0,
+  boxes:(__adjacentBoundaryMeasuredV1153.structuralBoxes||[]).map(r=>({...r}))
+};
+const __matchAdjacentPhysicalPopulationV1154=(boundary,frameGraph)=>{
+  const cells=(boundary&&boundary.boxes||[]).filter(Boolean);
+  const frames=(frameGraph&&frameGraph.rects||[]).filter(Boolean);
+  const intersection=(a,b)=>{
+    const x0=Math.max(a.x,b.x),y0=Math.max(a.y,b.y);
+    const x1=Math.min(a.x+a.w,b.x+b.w),y1=Math.min(a.y+a.h,b.y+b.h);
+    return Math.max(0,x1-x0)*Math.max(0,y1-y0);
+  };
+  const sameGeometry=(a,b)=>{
+    const hit=intersection(a,b);
+    return hit/Math.max(1,a.w*a.h)>=.78&&
+      hit/Math.max(1,b.w*b.h)>=.78;
+  };
+  const provenFrames=frames.filter(r=>{
+    const cov=['L','R','T','B'].map(s=>Number(r&&r.cov&&r.cov[s])||0);
+    return Math.min(...cov)>=.78&&cov.reduce((a,v)=>a+v,0)>=3.52;
+  });
+  const minSupport=Math.max(2,Math.ceil(frames.length*.72));
+  const used=new Set(),pairs=[];
+  if(boundary&&boundary.applied&&frameGraph&&frameGraph.applied&&
+     Number(boundary.count)===Number(frameGraph.count)&&
+     Number(boundary.rows)===Number(frameGraph.rows)&&
+     Number(boundary.cols)===Number(frameGraph.cols)&&
+     cells.length===frames.length&&provenFrames.length>=minSupport){
+    for(let ci=0;ci<cells.length;ci++){
+      let fi=-1;
+      for(let j=0;j<frames.length;j++)if(!used.has(j)&&sameGeometry(cells[ci],frames[j])){fi=j;break;}
+      if(fi<0)break;
+      used.add(fi);pairs.push({cell:ci,frame:fi});
+    }
+  }
+  const applied=pairs.length===cells.length&&used.size===frames.length&&cells.length>0;
+  return {applied,boundaryCount:cells.length,frameCount:frames.length,
+    provenFrames:provenFrames.length,minSupport,pairs:pairs.length,
+    rows:Number(boundary&&boundary.rows)||0,cols:Number(boundary&&boundary.cols)||0,
+    reason:applied?'same-complete-adjacent-physical-frame-population':
+      'population-or-symmetric-geometry-proof-incomplete'};
+};
+const __adjacentBoundaryPhysicalPopulationMatchV1154=
+  __matchAdjacentPhysicalPopulationV1154(
+    __adjacentBoundaryStructuralPopulationV1154,
+    __sharedLocalClosedV854
+  );
 const __adjacentBoundaryPhysicalFrameVetoV1145=!!(
-  (__opencvV491PopulationV907&&__opencvV491PopulationV907.debug&&
-   __opencvV491PopulationV907.debug.applied)||
-  (__opencvMixedHeightPopulationV1133&&
-   __opencvMixedHeightPopulationV1133.applied)
+  __adjacentBoundaryPhysicalPopulationMatchV1154.applied&&(
+    (__opencvV491PopulationV907&&__opencvV491PopulationV907.debug&&
+     __opencvV491PopulationV907.debug.applied)||
+    (__opencvMixedHeightPopulationV1133&&
+     __opencvMixedHeightPopulationV1133.applied)
+  )
+);
+// V1153: V1144 may call a lattice "complete" even when some nominal cells
+// are only separator-colour matte.  V1152 has already measured those exact
+// source cells and removed them individually.  A proven empty-cell result
+// invalidates V1144's population-completeness premise, so it must own the
+// coordinates in AUTO, OpenCV and GRID.  Complete V1144 grids with no proven
+// empty cells keep their established precedence and coordinates unchanged.
+const __adjacentBoundaryEmptyOverrideV1153=!!(
+  __sharedGutterReconciledV1144.debug.applied&&
+  __adjacentBoundaryMeasuredV1153.applied&&
+  Number(__adjacentBoundaryMeasuredV1153.emptyCellsRemoved)>0
 );
 const __adjacentBoundaryCandidateV1145=
-  __sharedGutterReconciledV1144.debug.applied
-    ?{version:'v1145-adjacent-boundary-sections',applied:false,
-      reason:'v1144-repeated-gutter-owner-precedes-adjacent-boundary',boxes:[]}
-    :__detectAdjacentBoundarySectionsV1145(sourceImage);
+  __sharedGutterReconciledV1144.debug.applied&&
+  !__adjacentBoundaryEmptyOverrideV1153
+    ?{version:'v1153-adjacent-boundary-sections',applied:false,
+      reason:'v1144-complete-repeated-gutter-owner-retained',boxes:[],
+      emptyCellsRemoved:0}
+    :__adjacentBoundaryMeasuredV1153;
 const __adjacentBoundarySectionsV1145={
   ...__adjacentBoundaryCandidateV1145,
   applied:!!(__adjacentBoundaryCandidateV1145.applied&&
@@ -9482,6 +9559,8 @@ const __adjacentBoundarySectionsV1145={
     ?'physical-four-side-frame-population-veto'
     :__adjacentBoundaryCandidateV1145.reason,
   physicalFrameVeto:__adjacentBoundaryPhysicalFrameVetoV1145,
+  physicalPopulationMatchV1154:__adjacentBoundaryPhysicalPopulationMatchV1154,
+  v1144EmptyCellOverride:__adjacentBoundaryEmptyOverrideV1153,
   padding:false,resize:false
 };
 if(__adjacentBoundarySectionsV1145.applied&&
@@ -9500,7 +9579,10 @@ __stageLogV236('FRAMELESS_ADJACENT_BOUNDARY_SECTIONS_V1145',{
   count:(__adjacentBoundarySectionsV1145.boxes||[]).length,
   rows:__adjacentBoundarySectionsV1145.rows||0,
   cols:__adjacentBoundarySectionsV1145.cols||0,
-  physicalFrameVeto:__adjacentBoundaryPhysicalFrameVetoV1145
+  emptyCellsRemoved:__adjacentBoundarySectionsV1145.emptyCellsRemoved||0,
+  v1144EmptyCellOverride:__adjacentBoundaryEmptyOverrideV1153,
+  physicalFrameVeto:__adjacentBoundaryPhysicalFrameVetoV1145,
+  physicalPopulationMatchV1154:__adjacentBoundaryPhysicalPopulationMatchV1154
 });
 
 // V892: AUTO evaluates the same OpenCV candidate family as explicit OpenCV.
@@ -9920,8 +10002,6 @@ function __detectAdjacentBoundarySectionsV1145(img){
             score:medianDelta*(.55*support+.45*edgeSupport)});
         }
       }
-      if(!raw.length)return {axis,applied:false,reason:'no-source-spanning-transitions',boundaries:[],rawCount:0,k,minSpan};
-
       const clusters=[];
       for(const q of raw){
         const g=clusters[clusters.length-1];
@@ -9951,24 +10031,169 @@ function __detectAdjacentBoundarySectionsV1145(img){
       }
       let boundaries=[...new Set(refined.map(q=>q.i))].sort((a,b)=>a-b)
         .filter(v=>v>=minSpan&&L-v>=minSpan);
+      // V1151: two source-spanning transitions may enclose a real empty
+      // separator band rather than a third picture.  Classify the interval
+      // itself from source pixels before the legacy thin-band rejection.
+      // A separator must be a low-variation colour plateau across the complete
+      // orthogonal axis, differ from both neighbours, and leave occupied spans
+      // of meaningful size on both sides.  The band is then excluded from the
+      // output coordinate set instead of being emitted as an empty cell.
+      const sampleRect=(a,b,proto)=>{
+        const rows=[],iStep=Math.max(1,Math.floor(Math.max(1,b-a)/80));
+        const qStep=Math.max(1,Math.floor(C/180));
+        for(let i=a;i<b;i+=iStep)for(let q=0;q<C;q+=qStep)rows.push(at(i,q));
+        const p=proto||componentMedian(rows);
+        const deltas=rows.map(v=>colourDelta(v,p)).sort((m,n)=>m-n);
+        const q90=deltas.length?deltas[Math.floor((deltas.length-1)*.90)]:255;
+        const uniform=deltas.filter(v=>v<=18).length/Math.max(1,deltas.length);
+        return {proto:p,q90,uniform,count:rows.length};
+      };
+      const sourceDifference=(a,b,proto)=>{
+        if(b<=a)return 0;
+        const s=sampleRect(a,b);
+        return colourDelta(s.proto,proto);
+      };
+      const sourceOccupancy=(a,b,proto)=>{
+        if(b<=a)return 0;
+        const iStep=Math.max(1,Math.floor((b-a)/64)),qStep=Math.max(1,Math.floor(C/120));
+        let hit=0,n=0;
+        for(let i=a;i<b;i+=iStep)for(let q=0;q<C;q+=qStep){n++;if(colourDelta(at(i,q),proto)>18)hit++;}
+        return hit/Math.max(1,n);
+      };
+      const separatorBands=[],separatorEdges=new Set();
+      const addSeparatorBand=band=>{
+        const overlap=separatorBands.some(v=>
+          Math.max(0,Math.min(v.b,band.b)-Math.max(v.a,band.a))/
+            Math.max(1,Math.min(v.n,band.n))>=.55);
+        if(!overlap)separatorBands.push(band);
+      };
+      for(let i=0;i<boundaries.length-1;i++){
+        const a=boundaries[i],b=boundaries[i+1],n=b-a;
+        if(n<minSpan||n>L*.45||a<minSpan||L-b<minSpan)continue;
+        const band=sampleRect(a,b);
+        const shoulder=Math.max(3,Math.min(minSpan,Math.round(Math.min(a,L-b)*.18)));
+        const beforeA=Math.max(0,a-shoulder),afterB=Math.min(L,b+shoulder);
+        const beforeDelta=sourceDifference(beforeA,a,band.proto);
+        const afterDelta=sourceDifference(b,afterB,band.proto);
+        const beforeFill=sourceOccupancy(0,a,band.proto);
+        const afterFill=sourceOccupancy(b,L,band.proto);
+        const applied=band.q90<=10&&band.uniform>=.95&&
+          beforeDelta>=5&&afterDelta>=5&&beforeFill>=.025&&afterFill>=.025;
+        if(!applied)continue;
+        addSeparatorBand({a,b,n,proto:band.proto,q90:+band.q90.toFixed(2),
+          uniform:+band.uniform.toFixed(4),beforeDelta:+beforeDelta.toFixed(2),
+          afterDelta:+afterDelta.toFixed(2),beforeFill:+beforeFill.toFixed(4),
+          afterFill:+afterFill.toFixed(4),source:'paired-transition'});
+        separatorEdges.add(i);separatorEdges.add(i+1);i++;
+      }
+      // V1152: separator ownership is measured directly from every complete
+      // source line as well.  This is required when an intentionally empty
+      // grid cell joins two ordinary gutters into one broad background band:
+      // there may be no usable pair of transition candidates left, even
+      // though the low-variation separator itself is unambiguous.
+      const uniformLines=[];
+      for(let i=0;i<L;i++){
+        const line=sampleRect(i,i+1);
+        uniformLines.push(line.q90<=10&&line.uniform>=.95?line:null);
+      }
+      const uniformRuns=[];
+      for(let i=0;i<L;){
+        if(!uniformLines[i]){i++;continue;}
+        const a=i;i++;
+        while(i<L&&uniformLines[i]&&
+          colourDelta(uniformLines[i-1].proto,uniformLines[i].proto)<=10)i++;
+        uniformRuns.push({a,b:i,n:i-a});
+      }
+      for(const run of uniformRuns){
+        const {a,b,n}=run;
+        if(n<minSpan||n>L*.45||a<minSpan||L-b<minSpan)continue;
+        const band=sampleRect(a,b);
+        // Without two transition endpoints a light/coloured uniform strip is
+        // indistinguishable from ordinary picture background.  Direct recovery
+        // is therefore reserved for a dark matte separator; other colours keep
+        // the existing paired-transition proof.  This prevents white page
+        // margins and flat studio backdrops from becoming synthetic gutters.
+        if(Math.max(...band.proto)>32)continue;
+        const shoulder=Math.max(3,Math.min(minSpan,Math.round(Math.min(a,L-b)*.18)));
+        const beforeA=Math.max(0,a-shoulder),afterB=Math.min(L,b+shoulder);
+        const beforeDelta=sourceDifference(beforeA,a,band.proto);
+        const afterDelta=sourceDifference(b,afterB,band.proto);
+        const beforeShoulderFill=sourceOccupancy(beforeA,a,band.proto);
+        const afterShoulderFill=sourceOccupancy(b,afterB,band.proto);
+        const beforeFill=sourceOccupancy(0,a,band.proto);
+        const afterFill=sourceOccupancy(b,L,band.proto);
+        if(band.q90>10||band.uniform<.95||beforeShoulderFill<.025||
+           afterShoulderFill<.025||
+           beforeFill<.025||afterFill<.025)continue;
+        const abutsStrongerBand=separatorBands.some(v=>
+          v.source==='paired-transition'&&
+          Math.max(0,Math.max(v.a,a)-Math.min(v.b,b))<=Math.max(2,k*2)&&
+          colourDelta(v.proto,band.proto)>10);
+        if(abutsStrongerBand)continue;
+        addSeparatorBand({a,b,n,proto:band.proto,q90:+band.q90.toFixed(2),
+          uniform:+band.uniform.toFixed(4),beforeDelta:+beforeDelta.toFixed(2),
+          afterDelta:+afterDelta.toFixed(2),
+          beforeShoulderFill:+beforeShoulderFill.toFixed(4),
+          afterShoulderFill:+afterShoulderFill.toFixed(4),beforeFill:+beforeFill.toFixed(4),
+          afterFill:+afterFill.toFixed(4),source:'direct-source-line'});
+      }
+      separatorBands.sort((a,b)=>a.a-b.a);
       // A separator, gutter, or frame stroke owns two transitions enclosing a
       // narrow band.  Do not select either edge as a frameless contact boundary.
       const paired=new Set();
       for(let i=0;i<boundaries.length-1;i++){
+        if(separatorEdges.has(i)||separatorEdges.has(i+1))continue;
         if(boundaries[i+1]-boundaries[i]<minSpan){paired.add(i);paired.add(i+1);i++;}
       }
       const pairedBands=[];
       boundaries.forEach((v,i)=>{if(paired.has(i))pairedBands.push(v);});
-      boundaries=boundaries.filter((v,i)=>!paired.has(i));
-      if(!boundaries.length)return {axis,applied:false,
-        reason:pairedBands.length?'only-thin-separator-or-frame-bands':'no-safe-internal-boundary',
-        boundaries:[],rawCount:raw.length,pairedBands,k,minSpan};
+      boundaries=boundaries.filter((v,i)=>!paired.has(i)&&!separatorEdges.has(i));
+      // A single axis must have one coordinate owner.  Once a real separator
+      // band is proven from source pixels, direct colour transitions inside
+      // the resulting image spans are artwork, not additional cell borders.
+      // Mixing both models caused faces, gift boxes and tracking marks to be
+      // emitted as narrow fragments.
+      const separatorOwnedSuppressedBoundaries=separatorBands.length?[...boundaries]:[];
+      if(separatorBands.length)boundaries=[];
+      // Apply V1146's substantive-two-side rule inside every source region
+      // established by separator bands.  A lone transition that peels off
+      // less than 30% of that region is an internal edge fragment, not another
+      // complete panel boundary.  Regions with several independently observed
+      // transitions retain them for ordinary contact-strip handling.
+      const separatorRegionPruned=[];
+      if(separatorBands.length&&boundaries.length){
+        const regionEdges=[0,...separatorBands.flatMap(v=>[v.a,v.b]),L];
+        const regions=[];
+        for(let i=0;i<regionEdges.length-1;i+=2)regions.push({a:regionEdges[i],b:regionEdges[i+1]});
+        const remove=new Set();
+        for(const region of regions){
+          const inside=boundaries.filter(v=>v>region.a&&v<region.b);
+          if(inside.length!==1)continue;
+          const v=inside[0],left=v-region.a,right=region.b-v;
+          const share=Math.min(left,right)/Math.max(1,region.b-region.a);
+          if(share<.30){remove.add(v);separatorRegionPruned.push({v,region,left,right,share:+share.toFixed(4)});}
+        }
+        boundaries=boundaries.filter(v=>!remove.has(v));
+      }
+      if(!boundaries.length&&!separatorBands.length)return {axis,applied:false,
+        reason:raw.length?(pairedBands.length?'only-thin-separator-or-frame-bands':'no-safe-internal-boundary'):
+          'no-source-spanning-transitions',
+        boundaries:[],separatorBands:[],separatorRegionPruned,
+        rawCount:raw.length,pairedBands,k,minSpan};
 
-      const cuts=[0,...boundaries,L];
-      const segments=[];
-      for(let i=0;i<cuts.length-1;i++)segments.push({a:cuts[i],b:cuts[i+1]-1,n:cuts[i+1]-cuts[i]});
+      const events=[
+        ...boundaries.map(v=>({a:v,b:v,type:'boundary'})),
+        ...separatorBands.map(v=>({a:v.a,b:v.b,type:'separator'}))
+      ].sort((m,n)=>m.a-n.a);
+      const segments=[];let cursor=0;
+      for(const event of events){
+        if(event.a>cursor)segments.push({a:cursor,b:event.a-1,n:event.a-cursor});
+        cursor=event.type==='separator'?event.b:event.a;
+      }
+      if(cursor<L)segments.push({a:cursor,b:L-1,n:L-cursor});
       if(segments.some(q=>q.n<minSpan))return {axis,applied:false,
-        reason:'minimum-card-span-not-proven',boundaries,segments,rawCount:raw.length,pairedBands,k,minSpan};
+        reason:'minimum-card-span-not-proven',boundaries,segments,separatorBands,separatorRegionPruned,
+        rawCount:raw.length,pairedBands,k,minSpan};
       // V1146: one observed change point is not by itself proof that the
       // whole axis has been partitioned.  If it isolates only a small edge
       // section, the much larger remainder may still contain several cards
@@ -9978,13 +10203,13 @@ function __detectAdjacentBoundarySectionsV1145(img){
       // owner is therefore valid only when both sides occupy a substantive
       // part of the source.  Multi-transition contact strips keep their
       // independently observed boundaries and are unaffected.
-      if(segments.length===2){
+      if(segments.length===2&&!separatorBands.length){
         const shorter=Math.min(segments[0].n,segments[1].n);
         const sourceShare=shorter/Math.max(1,L);
         if(sourceShare<.30)return {axis,applied:false,
           reason:'single-transition-incomplete-axis-partition',boundaries,
           segments,sourceShare:+sourceShare.toFixed(4),rawCount:raw.length,
-          pairedBands,k,minSpan};
+          separatorBands,separatorRegionPruned,pairedBands,k,minSpan};
       }
       const stability=[];
       for(const s of segments){
@@ -9999,11 +10224,14 @@ function __detectAdjacentBoundarySectionsV1145(img){
           left:left/Math.max(1,rows.length),right:right/Math.max(1,rows.length)});
       }
       const minStability=Math.min(...stability.map(q=>Math.min(q.left,q.right)));
-      if(minStability<.62)return {axis,applied:false,
+      if(minStability<.62&&!separatorBands.length)return {axis,applied:false,
         reason:'segment-edge-background-not-stable',boundaries,segments,stability,
-        minStability,rawCount:raw.length,pairedBands,k,minSpan};
-      return {axis,applied:true,reason:'source-spanning-direct-background-transitions',
+        minStability,rawCount:raw.length,separatorBands,separatorRegionPruned,pairedBands,k,minSpan};
+      return {axis,applied:true,reason:separatorBands.length
+          ?'source-spanning-low-variation-separator-bands-v1152'
+          :'source-spanning-direct-background-transitions',
         boundaries,segments,stability,minStability,rawCount:raw.length,
+        separatorBands,separatorRegionPruned,separatorOwnedSuppressedBoundaries,
         pairedBands,k,minSpan,length:L,cross:C};
     };
 
@@ -10013,14 +10241,16 @@ function __detectAdjacentBoundarySectionsV1145(img){
     if(x.applied&&!y.applied&&sw/Math.max(1,sh)<1.25)x={...x,applied:false,reason:'single-axis-source-not-elongated'};
     if(y.applied&&!x.applied&&sh/Math.max(1,sw)<1.25)y={...y,applied:false,reason:'single-axis-source-not-elongated'};
     if(!x.applied&&!y.applied)return {...out,reason:'no-qualified-adjacent-boundary-axis',xAxis:x,yAxis:y};
-    const xCuts=x.applied?[0,...x.boundaries,sw]:[0,sw];
-    const yCuts=y.applied?[0,...y.boundaries,sh]:[0,sh];
+    const xSegments=x.applied?x.segments:[{a:0,b:sw-1,n:sw}];
+    const ySegments=y.applied?y.segments:[{a:0,b:sh-1,n:sh}];
     const scaled=[];
-    for(let row=0;row<yCuts.length-1;row++)for(let col=0;col<xCuts.length-1;col++){
-      const x0=Math.round(xCuts[col]/scale),x1=Math.round(xCuts[col+1]/scale);
-      const y0=Math.round(yCuts[row]/scale),y1=Math.round(yCuts[row+1]/scale);
+    for(let row=0;row<ySegments.length;row++)for(let col=0;col<xSegments.length;col++){
+      const x0=Math.round(xSegments[col].a/scale),x1=Math.round((xSegments[col].b+1)/scale);
+      const y0=Math.round(ySegments[row].a/scale),y1=Math.round((ySegments[row].b+1)/scale);
       scaled.push({x:x0,y:y0,w:x1-x0,h:y1-y0,row,col});
     }
+    const separatorProtos=[...(x.separatorBands||[]),...(y.separatorBands||[])]
+      .map(v=>v.proto).filter(v=>Array.isArray(v)&&v.length===3);
     const occupancy=[];
     for(const r of scaled){
       const x0=Math.max(0,Math.round(r.x*scale)),x1=Math.min(sw,Math.round((r.x+r.w)*scale));
@@ -10028,23 +10258,39 @@ function __detectAdjacentBoundarySectionsV1145(img){
       const insetX=Math.max(1,Math.round((x1-x0)*.025)),insetY=Math.max(1,Math.round((y1-y0)*.025));
       const bgSamples=[];
       for(const yy of [y0+insetY,Math.max(y0,y1-1-insetY)])for(const xx of [x0+insetX,Math.max(x0,x1-1-insetX)])bgSamples.push(pixel(Math.min(sw-1,xx),Math.min(sh-1,yy)));
-      const bg=componentMedian(bgSamples),sx=Math.max(1,Math.floor((x1-x0)/28)),sy=Math.max(1,Math.floor((y1-y0)/28));
+      const bg=componentMedian(bgSamples),references=separatorProtos.length?separatorProtos:[bg];
+      const sx=Math.max(1,Math.floor((x1-x0)/28)),sy=Math.max(1,Math.floor((y1-y0)/28));
       let hit=0,n=0;
-      for(let yy=y0;yy<y1;yy+=sy)for(let xx=x0;xx<x1;xx+=sx){n++;if(colourDelta(pixel(xx,yy),bg)>14)hit++;}
-      occupancy.push({row:r.row,col:r.col,fill:hit/Math.max(1,n)});
+      for(let yy=y0;yy<y1;yy+=sy)for(let xx=x0;xx<x1;xx+=sx){
+        n++;if(Math.min(...references.map(p=>colourDelta(pixel(xx,yy),p)))>14)hit++;
+      }
+      const fill=hit/Math.max(1,n);
+      occupancy.push({row:r.row,col:r.col,fill,empty:fill<.012});
     }
     const minFill=Math.min(...occupancy.map(q=>q.fill));
-    if(minFill<.012)return {...out,reason:'empty-section-between-boundaries',
-      rows:yCuts.length-1,cols:xCuts.length-1,xAxis:x,yAxis:y,
+    if(minFill<.012&&!separatorProtos.length)return {...out,reason:'empty-section-between-boundaries',
+      rows:ySegments.length,cols:xSegments.length,xAxis:x,yAxis:y,
       occupancy,minFill:+minFill.toFixed(4)};
-    const boxes=scaled.map(r=>({x:r.x,y:r.y,w:r.w,h:r.h,
+    const occupied=separatorProtos.length
+      ?scaled.filter(r=>!(occupancy.find(q=>q.row===r.row&&q.col===r.col)||{}).empty)
+      :scaled;
+    if(!occupied.length)return {...out,reason:'all-separator-cells-empty',
+      rows:ySegments.length,cols:xSegments.length,xAxis:x,yAxis:y,occupancy};
+    const boxes=occupied.map(r=>({x:r.x,y:r.y,w:r.w,h:r.h,
       __engine:'opencv-frameless-adjacent-boundary-v1145',
       __framelessGutterSourceOwnedV919:true,
       __adjacentBoundarySourceOwnedV1145:true,
-      __cellV1145:{row:r.row,col:r.col,owner:'source-spanning-direct-background-transition'}}));
-    return {...out,applied:true,reason:'strict-axis-neutral-adjacent-boundary-sections-v1145',
-      count:boxes.length,rows:yCuts.length-1,cols:xCuts.length-1,boxes,
-      xAxis:x,yAxis:y,occupancy,minFill:+minFill.toFixed(4),
+      __separatorBandSourceOwnedV1151:!!((x.separatorBands||[]).length||(y.separatorBands||[]).length),
+      __cellV1145:{row:r.row,col:r.col,owner:(x.separatorBands||[]).length||(y.separatorBands||[]).length
+        ?'source-spanning-low-variation-separator-band-v1152'
+        :'source-spanning-direct-background-transition'}}));
+    return {...out,version:'v1154-population-matched-frame-veto',
+      applied:true,reason:'strict-axis-neutral-adjacent-boundary-sections-v1152',
+      count:boxes.length,rows:ySegments.length,cols:xSegments.length,boxes,
+      structuralBoxes:scaled.map(r=>({x:r.x,y:r.y,w:r.w,h:r.h,row:r.row,col:r.col})),
+      structuralCount:scaled.length,
+      xAxis:x,yAxis:y,occupancy,emptyCellsRemoved:scaled.length-boxes.length,
+      minFill:+minFill.toFixed(4),
       sourceCellWidths:[...new Set(boxes.map(r=>r.w))],
       sourceCellHeights:[...new Set(boxes.map(r=>r.h))],
       coordinateOwner:'v1145-source-spanning-direct-background-transition'};
@@ -31934,6 +32180,65 @@ function bind(){
   });
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind);else bind();
+})();
+</script>
+<script id="dpc-cut-blank-output-veto-v1155">
+/*
+ * V1155 final blank-output veto.
+ * Root cause of the repeated 75: empty (fully transparent) lattice cells of a source
+ * were still emitted as result cards by several detector/restore stages. Instead of
+ * chasing every stage, the population is closed here, after rendering settles:
+ * any result card whose bitmap is fully transparent is removed exactly like the user's
+ * own X button (card.remove + commit), so title, numbering, extracted[] and saves agree.
+ */
+(function(){
+  'use strict';
+  var list=document.getElementById('results');
+  if(!list)return;
+  var timer=0,busy=false;
+  function isBlank(img){
+    try{
+      if(!img||!img.complete||!img.naturalWidth||!img.naturalHeight)return null; // unknown yet
+      var w=Math.min(96,img.naturalWidth),h=Math.min(96,img.naturalHeight);
+      var c=document.createElement('canvas');c.width=w;c.height=h;
+      var x=c.getContext('2d',{willReadFrequently:true});
+      x.drawImage(img,0,0,w,h);
+      var d=x.getImageData(0,0,w,h).data,opaque=0,n=w*h;
+      for(var i=3;i<d.length;i+=4){if(d[i]>8)opaque++;}
+      return opaque/n<0.002;
+    }catch(e){return null;}
+  }
+  function sweep(){
+    if(busy)return;
+    var runBtn=document.getElementById('run');
+    if((runBtn&&runBtn.dataset.busy==='1')||document.body.classList.contains('__cut_processing')){schedule();return;} // CUT still running
+    var cards=Array.prototype.filter.call(list.children,function(n){return n.classList&&n.classList.contains('card');});
+    if(!cards.length)return;
+    var pending=false,removed=0;
+    cards.forEach(function(card){
+      var img=card.querySelector('img');
+      var r=isBlank(img);
+      if(r===null){pending=true;return;}
+      if(r){card.remove();removed++;}
+    });
+    if(pending){schedule();return;}
+    if(removed){
+      busy=true;
+      try{
+        if(typeof window.__cutCommitResultOrderV1150==='function')window.__cutCommitResultOrderV1150();
+        else if(typeof renumber==='function')renumber();
+        var n=list.querySelectorAll('.card').length;
+        var rt=document.getElementById('resultTitle');
+        if(rt)rt.textContent=rt.textContent.replace(/CUT \(\d+/,'CUT ('+n);
+        window.__CUT_BLANK_VETO_V1155__={removed:removed,remaining:n};
+      }finally{busy=false;}
+    }
+  }
+  function schedule(){clearTimeout(timer);timer=setTimeout(sweep,500);}
+  new MutationObserver(schedule).observe(list,{childList:true,subtree:true,attributes:true,attributeFilter:['src']});
+  var run=document.getElementById('run');
+  if(run)new MutationObserver(schedule).observe(run,{attributes:true,attributeFilter:['data-busy','class']});
+  new MutationObserver(schedule).observe(document.body,{attributes:true,attributeFilter:['class']});
 })();
 </script>
 </body>
