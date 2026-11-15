@@ -32241,5 +32241,1081 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   new MutationObserver(schedule).observe(document.body,{attributes:true,attributeFilter:['class']});
 })();
 </script>
+<style id="dpc-cut-office-import-v1156">
+#dpcOfficeView{margin-top:4px}
+#previewPanel.is-collapsed #dpcOfficeView{display:none!important}
+#dpcOfficeView .dpc-of-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin:0 0 10px}
+#dpcOfficeView .dpc-of-info{color:#777;font-size:14px;text-align:left;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1 1 200px}
+#dpcOfficeView .dpc-of-btns{display:flex;gap:6px;flex:none}
+#dpcOfficeView .dpc-of-host{text-align:left;border:1px solid #ccc;background:#f4f4f4;padding:12px 0 16px;overflow:hidden}
+#dpcOfficeView .dpc-of-doc{display:flex;flex-direction:column;align-items:center;gap:6px}
+#dpcOfficeView .dpo-ttl{color:#777;font-size:13px;margin-top:8px}
+#dpcOfficeView .dpc-of-fit{position:relative;flex:none;box-shadow:0 1px 4px rgba(0,0,0,.18);background:#fff}
+#dpcOfficeView .dpo-page,#dpcOfficeView .dpo-slide,#dpcOfficeView .dpo-sheet{position:relative;background:#fff;color:#000;flex:none;box-sizing:border-box}
+#dpcOfficeView .dpo-page{font-family:"Malgun Gothic",sans-serif;font-size:13px;line-height:1.35}
+#dpcOfficeView .dpo-page p{margin:0;min-height:1em;white-space:pre-wrap}
+#dpcOfficeView .dpo-page table{border-collapse:collapse;margin:2px 0}
+#dpcOfficeView .dpo-page td{border:1px solid #999;vertical-align:top;padding:2px 4px}
+#dpcOfficeView .dpo-slide{overflow:hidden}
+#dpcOfficeView .dpo-sheet table{border-collapse:collapse;table-layout:fixed;font-size:12px}
+#dpcOfficeView .dpo-sheet td{border:1px solid #e2e2e2;padding:0 3px;overflow:hidden;white-space:nowrap;vertical-align:bottom}
+#dpcOfficeView .dpo-slide table td{border:none}
+#dpcOfficeView .dpo-cut{cursor:pointer;-webkit-tap-highlight-color:transparent}
+#dpcOfficeView .dpo-cut img{max-width:none;border:0;margin:0}
+@media (hover:hover){#dpcOfficeView .dpo-cut:hover{outline:3px solid rgba(22,132,242,.55);outline-offset:-3px}}
+#dpcOfficeView .dpo-bad{cursor:default;background:#ddd;color:#777;font-size:11px;align-items:center;justify-content:center}
+#dpcOfficeView .dpc-of-sel{position:absolute;inset:0;pointer-events:none;z-index:1000}
+#dpcOfficeView .dpc-of-box{position:absolute;outline:4px solid #1684f2;outline-offset:-4px;background:rgba(22,132,242,.14)}
+#dpcOfficeView .dpc-of-box::after{content:attr(data-no);position:absolute;top:4px;left:4px;background:#1684f2;color:#fff;font:600 14px 'Noto Sans KR',sans-serif;padding:1px 7px;border-radius:4px}
+#dpcOfficeDocs:empty{display:none!important}
+#dpcOfficeDocs .dpc-of-tile{box-sizing:border-box;width:100%;aspect-ratio:16/9;border:1px solid #ccc;background:#fff;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:4px 8px;overflow:hidden}
+#dpcOfficeDocs .dpc-of-tile b{font-size:15px;color:#111;letter-spacing:.5px}
+#dpcOfficeDocs .dpc-of-tile span{font-size:11px;color:#777;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#dpcOfficeDocs .dpc-of-tile.on{outline:2px solid #1684f2;outline-offset:-2px}
+</style>
+<script id="dpc-cut-office-import-v1156">
+/*
+ * V1156 오피스 문서(pptx·docx·xlsx) 가져오기.
+ * - 입력: 기존 파일 입력 경로(__cutOnlySupportedImages)에서 오피스 파일만 따로 받아 처리. 이미지 경로는 그대로.
+ * - 보기: 원본 미리보기 카드 안에 문서 화면을 그대로 그리고, 이미지를 클릭해 컷 선택(클릭 순서 번호).
+ * - CUT: 선택 컷(없으면 전체)을 원본 해상도·문서상 크롭 그대로 결과 카드로 만든다.
+ *   카드 형식은 엔진 카드와 동일하며 V1150 순서 계약(commit)으로 확정 → 저장·압축·SHEET 전송·순서 변경·삭제 공용.
+ * - GIF(움짤) 컷은 원본 GIF 그대로 결과에 넣어 애니메이션 유지(문서상 크롭은 적용하지 않음), 저장·압축·SHEET 전송 이름은 .gif.
+ * - 검출 엔진(OpenCV/GRID)은 건드리지 않는다. 이미지 원본이 함께 있으면 엔진 실행 후 문서 컷을 뒤에 붙인다.
+ */
+
+(function(){
+'use strict';
+// ================= ZIP 읽기 (브라우저 내장 압축해제) =================
+async function readZip(buf){
+  const dv=new DataView(buf), u8=new Uint8Array(buf);
+  let eocd=-1;
+  for(let i=u8.length-22;i>=Math.max(0,u8.length-65558);i--){ if(dv.getUint32(i,true)===0x06054b50){eocd=i;break;} }
+  if(eocd<0) throw new Error('docx/pptx/xlsx 형식이 아닙니다');
+  const n=dv.getUint16(eocd+10,true); let p=dv.getUint32(eocd+16,true);
+  const files={}, dec=new TextDecoder();
+  for(let k=0;k<n;k++){
+    const method=dv.getUint16(p+10,true), csize=dv.getUint32(p+20,true);
+    const nl=dv.getUint16(p+28,true), el=dv.getUint16(p+30,true), cl=dv.getUint16(p+32,true);
+    const off=dv.getUint32(p+42,true);
+    files[dec.decode(u8.subarray(p+46,p+46+nl))]={method,csize,off};
+    p+=46+nl+el+cl;
+  }
+  return {
+    names:Object.keys(files),
+    has:nm=>nm in files,
+    async get(nm){
+      const f=files[nm]; if(!f) return null;
+      const s=f.off+30+dv.getUint16(f.off+26,true)+dv.getUint16(f.off+28,true);
+      const data=u8.slice(s,s+f.csize);
+      if(f.method===0) return data;
+      const ds=new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+      return new Uint8Array(await new Response(ds).arrayBuffer());
+    },
+    async text(nm){ const d=await this.get(nm); return d?dec.decode(d):null; },
+    async xml(nm){ const t=await this.text(nm); return t?new DOMParser().parseFromString(t,'application/xml'):null; }
+  };
+}
+
+// ================= XML 도우미 =================
+const kids=(el,n)=>el?[...el.children].filter(c=>c.localName===n):[];
+const kid=(el,n)=>kids(el,n)[0]||null;
+const path1=(el,...ns)=>{for(const n of ns){el=kid(el,n);if(!el)return null;}return el;};
+const desc=(el,n)=>el?[...el.getElementsByTagNameNS('*',n)]:[];
+const at=(el,n)=>{if(!el)return null;for(const a of el.attributes)if(a.localName===n)return a.value;return null;};
+const atR=(el,n)=>{if(!el)return null;for(const a of el.attributes)if(a.localName===n&&/relationships/.test(a.namespaceURI||''))return a.value;return null;};
+const EMU=v=>(+v||0)/9525;              // EMU → px(96dpi)
+function resolvePath(base,target){
+  if(target.startsWith('/')) return target.slice(1);
+  const dir=base.split('/').slice(0,-1);
+  for(const s of target.split('/')){ if(s==='..') dir.pop(); else if(s!=='.') dir.push(s); }
+  return dir.join('/');
+}
+const relsPathOf=part=>{const a=part.split('/');const f=a.pop();return [...a,'_rels',f+'.rels'].join('/');};
+async function rels(z,part){
+  const x=await z.xml(relsPathOf(part)), m={};
+  if(x) for(const r of desc(x,'Relationship')) if(at(r,'TargetMode')!=='External') m[at(r,'Id')]=resolvePath(part,at(r,'Target'));
+  return m;
+}
+const MIME={png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',gif:'image/gif',bmp:'image/bmp',webp:'image/webp',svg:'image/svg+xml'};
+
+async function getMedia(path){
+  if(media[path]!==undefined) return media[path];
+  const data=await Z.get(path); if(!data) return media[path]=null;
+  const ext=path.split('.').pop().toLowerCase();
+  const url=URL.createObjectURL(new Blob([data],{type:MIME[ext]||'application/octet-stream'}));
+  const img=await new Promise(r=>{const im=new Image();im.onload=()=>r(im);im.onerror=()=>r(null);im.src=url;});
+  return media[path]={path,data,ext,url,img};
+}
+
+// 이미지 하나를 화면에 놓고 선택 대상으로 등록 (docx·xlsx용)
+async function placeCut(path,w,h,abs,crop){
+  const el=await cutEl(path,w,h,{selectable:true,crop});
+  if(abs){el.style.left=abs.x+'px';el.style.top=abs.y+'px';el.style.zIndex=2;}
+  else {el.style.position='relative';el.style.display='inline-block';el.style.verticalAlign='bottom';}
+  return el;
+}
+// ================= DOCX =================
+async function renderDocx(){
+  const doc=await Z.xml('word/document.xml'), R=await rels(Z,'word/document.xml');
+  const body=desc(doc,'body')[0];
+  const sect=kid(body,'sectPr'), pgSz=kid(sect,'pgSz'), pgMar=kid(sect,'pgMar');
+  const page=document.createElement('div'); page.className='dpo-page';
+  page.style.width=(pgSz?at(pgSz,'w')/15:794)+'px';
+  page.style.minHeight=(pgSz?at(pgSz,'h')/15:1123)+'px';
+  page.style.padding=pgMar?`${at(pgMar,'top')/15}px ${at(pgMar,'right')/15}px ${at(pgMar,'bottom')/15}px ${at(pgMar,'left')/15}px`:'60px';
+  await blocks(body,page,R);
+  VIEW.appendChild(page);
+}
+async function blocks(node,out,R){
+  for(const c of node.children){
+    if(c.localName==='p') out.appendChild(await para(c,R));
+    else if(c.localName==='tbl') out.appendChild(await table(c,R));
+    else if(c.localName==='sdt') await blocks(kid(c,'sdtContent')||c,out,R);
+  }
+}
+async function para(p,R){
+  const el=document.createElement('p');
+  const jc=at(path1(p,'pPr','jc'),'val');
+  if(jc==='center') el.style.textAlign='center'; else if(jc==='right'||jc==='end') el.style.textAlign='right';
+  await inline(p,el,R);
+  return el;
+}
+async function inline(node,out,R){
+  for(const c of node.children){
+    const n=c.localName;
+    if(n==='pPr'||n==='rPr'||n==='Fallback') continue;
+    if(n==='r'){
+      const span=document.createElement('span'), rp=kid(c,'rPr');
+      if(kid(rp,'b')&&at(kid(rp,'b'),'val')!=='0') span.style.fontWeight='bold';
+      const sz=at(kid(rp,'sz'),'val'); if(sz) span.style.fontSize=(sz/2)+'pt';
+      await inline(c,span,R); out.appendChild(span);
+    }
+    else if(n==='t') out.appendChild(document.createTextNode(c.textContent));
+    else if(n==='tab') out.appendChild(document.createTextNode('\t'));
+    else if(n==='br'||n==='cr') out.appendChild(document.createElement('br'));
+    else if(n==='drawing'){
+      for(const box of [...kids(c,'inline'),...kids(c,'anchor')]){
+        const ext=kid(box,'extent'), blip=desc(box,'blip')[0];
+        if(!blip) continue;
+        out.appendChild(await placeCut(R[at(blip,'embed')||at(blip,'link')],EMU(at(ext,'cx')),EMU(at(ext,'cy'))));
+      }
+    }
+    else if(n==='pict'||n==='object'){
+      const id=desc(c,'imagedata')[0], shape=desc(c,'shape')[0];
+      if(!id) continue;
+      const st=at(shape,'style')||'', pt=k=>{const m=st.match(new RegExp(k+':\\s*([\\d.]+)(pt|in|px)?'));return m?(+m[1])*(m[2]==='in'?96:m[2]==='px'?1:4/3):100;};
+      out.appendChild(await placeCut(R[at(id,'id')],pt('width'),pt('height')));
+    }
+    else await inline(c,out,R);   // hyperlink, smartTag, AlternateContent/Choice 등
+  }
+}
+async function table(tbl,R){
+  const t=document.createElement('table');
+  for(const tr of kids(tbl,'tr')){
+    const row=t.insertRow();
+    const h=path1(tr,'trPr','trHeight'); if(h) row.style.height=at(h,'val')/15+'px';
+    for(const tc of kids(tr,'tc')){
+      const pr=kid(tc,'tcPr'); const vm=kid(pr,'vMerge');
+      const td=row.insertCell();
+      const span=at(kid(pr,'gridSpan'),'val'); if(span) td.colSpan=+span;
+      const w=kid(pr,'tcW'); if(w&&at(w,'type')==='dxa') td.style.width=at(w,'w')/15+'px';
+      if(vm&&at(vm,'val')!=='restart') td.style.borderTopColor='transparent';
+      await blocks(tc,td,R);
+    }
+  }
+  return t;
+}
+
+// ================= DrawingML 공통 (색·채우기·선·도형·텍스트) =================
+const SVGNS='http://www.w3.org/2000/svg';
+let gradSeq=0;
+function xf(el){ // 요소 아래 첫 xfrm
+  const x=desc(el,'xfrm')[0]; if(!x) return null;
+  const o=kid(x,'off'),e=kid(x,'ext'),co=kid(x,'chOff'),ce=kid(x,'chExt');
+  if(!o||!e) return null;
+  return {x:+at(o,'x')||0,y:+at(o,'y')||0,w:+at(e,'cx')||0,h:+at(e,'cy')||0,
+          cx:co?+at(co,'x'):0,cy:co?+at(co,'y'):0,cw:ce?+at(ce,'cx'):0,ch:ce?+at(ce,'cy'):0,
+          rot:(+at(x,'rot')||0)/60000,fh:at(x,'flipH')==='1',fv:at(x,'flipV')==='1'};
+}
+function parseTheme(x){
+  const T={colors:{},major:{},minor:{},fills:[],bgFills:[],lns:[]};
+  if(!x) return T;
+  const cs=desc(x,'clrScheme')[0];
+  if(cs) for(const c of cs.children){ const s=kid(c,'srgbClr'), y=kid(c,'sysClr'); T.colors[c.localName]=s?at(s,'val'):y?(at(y,'lastClr')||(at(y,'val')==='window'?'FFFFFF':'000000')):'000000'; }
+  const fontOf=f=>{ if(!f) return {}; const o={latin:at(kid(f,'latin'),'typeface'),ea:at(kid(f,'ea'),'typeface')}; for(const fn of kids(f,'font')) if(at(fn,'script')==='Hang') o.hang=at(fn,'typeface'); return o; };
+  T.major=fontOf(desc(x,'majorFont')[0]); T.minor=fontOf(desc(x,'minorFont')[0]);
+  const fs=desc(x,'fillStyleLst')[0], bs=desc(x,'bgFillStyleLst')[0], ls=desc(x,'lnStyleLst')[0];
+  T.fills=fs?[...fs.children]:[]; T.bgFills=bs?[...bs.children]:[]; T.lns=ls?[...ls.children]:[];
+  return T;
+}
+const DEFMAP={bg1:'lt1',tx1:'dk1',bg2:'lt2',tx2:'dk2'};
+const PRST={black:'000000',white:'FFFFFF',red:'FF0000',green:'008000',blue:'0000FF',yellow:'FFFF00',gray:'808080',grey:'808080',orange:'FFA500',darkGray:'A9A9A9',lightGray:'D3D3D3',cyan:'00FFFF',magenta:'FF00FF'};
+const HL={yellow:'FFFF00',green:'00FF00',cyan:'00FFFF',magenta:'FF00FF',blue:'0000FF',red:'FF0000',darkBlue:'000080',darkCyan:'008080',darkGreen:'008000',darkMagenta:'800080',darkRed:'800000',darkYellow:'808000',darkGray:'808080',lightGray:'C0C0C0',black:'000000',white:'FFFFFF'};
+const hex=h=>{h=(h||'000000').replace('#','');if(h.length===8)h=h.slice(2);return [parseInt(h.slice(0,2),16)||0,parseInt(h.slice(2,4),16)||0,parseInt(h.slice(4,6),16)||0];};
+const lin2s=v=>{v=Math.max(0,Math.min(1,v));return 255*(v<=0.0031308?12.92*v:1.055*Math.pow(v,1/2.4)-0.055);};
+function rgb2hsl([r,g,b]){r/=255;g/=255;b/=255;const mx=Math.max(r,g,b),mn=Math.min(r,g,b);let h=0,s=0;const l=(mx+mn)/2;if(mx!==mn){const d=mx-mn;s=l>0.5?d/(2-mx-mn):d/(mx+mn);h=mx===r?(g-b)/d+(g<b?6:0):mx===g?(b-r)/d+2:(r-g)/d+4;h/=6;}return [h,s,l];}
+function hsl2rgb([h,s,l]){if(!s)return [l*255,l*255,l*255];const q=l<0.5?l*(1+s):l+s-l*s,p=2*l-q;const f=t=>{if(t<0)t+=1;if(t>1)t-=1;return t<1/6?p+(q-p)*6*t:t<1/2?q:t<2/3?p+(q-p)*(2/3-t)*6:p;};return [f(h+1/3)*255,f(h)*255,f(h-1/3)*255];}
+const COLOR_TAGS=['srgbClr','schemeClr','sysClr','prstClr','scrgbClr','hslClr'];
+const colorChild=el=>{if(!el)return null;for(const c of el.children)if(COLOR_TAGS.includes(c.localName))return c;return null;};
+function resolveColor(c,C){
+  if(!c) return null;
+  let rgb=[0,0,0],a=1; const n=c.localName,v=at(c,'val');
+  if(n==='srgbClr') rgb=hex(v);
+  else if(n==='sysClr') rgb=hex(at(c,'lastClr')||(v==='window'?'FFFFFF':'000000'));
+  else if(n==='scrgbClr') rgb=['r','g','b'].map(k=>lin2s((+at(c,k)||0)/100000));
+  else if(n==='prstClr') rgb=hex(PRST[v]||'000000');
+  else if(n==='hslClr') rgb=hsl2rgb([(+at(c,'hue')||0)/21600000,(+at(c,'sat')||0)/100000,(+at(c,'lum')||0)/100000]);
+  else if(n==='schemeClr'){
+    if(v==='phClr'){ if(C.ph){rgb=C.ph.slice(0,3);a=C.ph[3];} }
+    else rgb=hex(C.theme.colors[(C.map&&C.map[v])||DEFMAP[v]||v]||'000000');
+  }
+  for(const m of c.children){
+    const k=(+at(m,'val'))/100000;
+    switch(m.localName){
+      case 'lumMod':{const h=rgb2hsl(rgb);h[2]*=k;rgb=hsl2rgb(h);break;}
+      case 'lumOff':{const h=rgb2hsl(rgb);h[2]=Math.min(1,Math.max(0,h[2]+k));rgb=hsl2rgb(h);break;}
+      case 'satMod':{const h=rgb2hsl(rgb);h[1]=Math.min(1,h[1]*k);rgb=hsl2rgb(h);break;}
+      case 'tint': rgb=rgb.map(x=>x+(255-x)*(1-k)); break;
+      case 'shade': rgb=rgb.map(x=>x*k); break;
+      case 'alpha': a=k; break;
+      case 'alphaMod': a*=k; break;
+    }
+  }
+  return [...rgb.map(x=>Math.round(Math.max(0,Math.min(255,x)))),a];
+}
+const css=c=>c?`rgba(${c[0]},${c[1]},${c[2]},${c[3]})`:'transparent';
+function fillNode(c,C){
+  switch(c.localName){
+    case 'noFill': return {kind:'none'};
+    case 'solidFill': return {kind:'solid',color:resolveColor(colorChild(c),C)};
+    case 'gradFill':{
+      const stops=desc(c,'gs').map(g=>({pos:+at(g,'pos')/1000,color:resolveColor(colorChild(g),C)})).sort((a,b)=>a.pos-b.pos);
+      const lin=kid(c,'lin');
+      return stops.length?{kind:'grad',stops,ang:lin?+at(lin,'ang')/60000:90,radial:!!kid(c,'path')}:null;
+    }
+    case 'blipFill': return {kind:'blip',el:c};
+    case 'pattFill': return {kind:'solid',color:resolveColor(colorChild(kid(c,'fgClr')),C)};
+    case 'grpFill': return {kind:'grp'};
+  }
+  return null;
+}
+function fillOf(el,C){ if(!el) return null; for(const c of el.children){ const f=fillNode(c,C); if(f) return f; } return null; }
+function refFill(ref,C,bg){ // fillRef/bgRef → 테마 채우기
+  if(!ref) return null; const idx=+at(ref,'idx'); const col=resolveColor(colorChild(ref),C);
+  if(!idx) return {kind:'none'};
+  const tpl=idx>=1001?C.theme.bgFills[idx-1001]:C.theme.fills[idx-1];
+  return tpl?fillNode(tpl,{...C,ph:col}):(col?{kind:'solid',color:col}:null);
+}
+function gradCss(f){
+  const st=f.stops.map(s=>`${css(s.color)} ${s.pos}%`).join(',');
+  return f.radial?`radial-gradient(circle,${st})`:`linear-gradient(${f.ang+90}deg,${st})`;
+}
+async function applyBg(el,f,R){
+  if(!f||f.kind==='none') return;
+  if(f.kind==='solid') el.style.background=css(f.color);
+  else if(f.kind==='grad') el.style.background=gradCss(f);
+  else if(f.kind==='blip'){
+    const b=desc(f.el,'blip')[0], m=b&&await getMedia(R[at(b,'embed')]);
+    if(m&&m.img){ el.style.backgroundImage=`url(${m.url})`; el.style.backgroundSize=kid(f.el,'tile')?'auto':'100% 100%'; }
+  }
+}
+function lineFrom(ln,C,base){
+  if(!ln) return base;
+  const f=fillOf(ln,C);
+  if(f&&f.kind==='none') return null;
+  const color=f?(f.kind==='solid'?f.color:f.kind==='grad'?f.stops[0].color:null):base?base.color:null;
+  if(!color) return null;
+  const w=at(ln,'w')!=null?EMU(at(ln,'w')):(base?base.w:1);
+  return {w:Math.max(w,0.75),color,dash:at(kid(ln,'prstDash'),'val')||(base&&base.dash),
+          head:at(kid(ln,'headEnd'),'type'),tail:at(kid(ln,'tailEnd'),'type')};
+}
+function styleLine(sp,C){
+  const lr=path1(sp,'style','lnRef'); if(!lr||!+at(lr,'idx')) return null;
+  const col=resolveColor(colorChild(lr),C), tpl=C.theme.lns[+at(lr,'idx')-1];
+  const base={w:tpl?EMU(at(tpl,'w')||9525):1,color:col};
+  return tpl?lineFrom(tpl,{...C,ph:col},base):base;
+}
+const DASH={dash:[4,3],sysDash:[3,1],dot:[1,1],sysDot:[1,1],lgDash:[8,3],dashDot:[4,3,1,3],lgDashDot:[8,3,1,3],lgDashDotDot:[8,3,1,3,1,3],sysDashDot:[3,1,1,1],sysDashDotDot:[3,1,1,1,1,1]};
+
+// ---- 도형 윤곽 (px 좌표 SVG path) ----
+function adjOf(geom,name,def){ for(const g of desc(geom,'gd')) if(at(g,'name')===name){const m=(at(g,'fmla')||'').match(/val\s+(-?\d+)/);if(m)return +m[1];} return def; }
+const LINE_PRST=/^(line|straightConnector1|bentConnector\d|curvedConnector\d|lineInv)$/;
+function geomPath(spPr,w,h){
+  const cg=kid(spPr,'custGeom');
+  if(cg) return {d:custPath(cg,w,h),open:false};
+  const pg=kid(spPr,'prstGeom'), p=pg?at(pg,'prst'):'rect', ss=Math.min(w,h);
+  const A=(n,d)=>adjOf(pg,n,d)/100000;
+  const poly=pts=>'M'+pts.map(q=>q.join(' ')).join(' L')+' Z';
+  switch(p){
+    case 'line': case 'straightConnector1': return {d:`M0 0 L${w} ${h}`,open:true};
+    case 'lineInv': return {d:`M0 ${h} L${w} 0`,open:true};
+    case 'bentConnector2': return {d:`M0 0 L${w} 0 L${w} ${h}`,open:true};
+    case 'bentConnector3':{const x=w*A('adj1',50000);return {d:`M0 0 L${x} 0 L${x} ${h} L${w} ${h}`,open:true};}
+    case 'curvedConnector3':{const x=w*A('adj1',50000);return {d:`M0 0 C${x} 0 ${x} ${h} ${w} ${h}`,open:true};}
+    case 'roundRect':{const r=ss*A('adj',16667);return {d:`M${r} 0 H${w-r} A${r} ${r} 0 0 1 ${w} ${r} V${h-r} A${r} ${r} 0 0 1 ${w-r} ${h} H${r} A${r} ${r} 0 0 1 0 ${h-r} V${r} A${r} ${r} 0 0 1 ${r} 0 Z`};}
+    case 'round2SameRect':{const r=ss*A('adj1',16667);return {d:`M${r} 0 H${w-r} A${r} ${r} 0 0 1 ${w} ${r} V${h} H0 V${r} A${r} ${r} 0 0 1 ${r} 0 Z`};}
+    case 'ellipse': case 'flowChartConnector': return {d:`M0 ${h/2} A${w/2} ${h/2} 0 1 1 ${w} ${h/2} A${w/2} ${h/2} 0 1 1 0 ${h/2} Z`};
+    case 'triangle':{const x=w*A('adj',50000);return {d:poly([[x,0],[w,h],[0,h]])};}
+    case 'rtTriangle': return {d:poly([[0,0],[w,h],[0,h]])};
+    case 'diamond': case 'flowChartDecision': return {d:poly([[w/2,0],[w,h/2],[w/2,h],[0,h/2]])};
+    case 'parallelogram':{const x=ss*A('adj',25000);return {d:poly([[x,0],[w,0],[w-x,h],[0,h]])};}
+    case 'trapezoid':{const x=ss*A('adj',25000);return {d:poly([[x,0],[w-x,0],[w,h],[0,h]])};}
+    case 'pentagon': case 'homePlate':{const x=w-ss*A('adj',50000);return {d:poly([[0,0],[x,0],[w,h/2],[x,h],[0,h]])};}
+    case 'chevron':{const x=ss*A('adj',50000);return {d:poly([[0,0],[w-x,0],[w,h/2],[w-x,h],[0,h],[x,h/2]])};}
+    case 'hexagon':{const x=ss*A('adj',25000);return {d:poly([[x,0],[w-x,0],[w,h/2],[w-x,h],[x,h],[0,h/2]])};}
+    case 'octagon':{const x=ss*A('adj',29289);return {d:poly([[x,0],[w-x,0],[w,x],[w,h-x],[w-x,h],[x,h],[0,h-x],[0,x]])};}
+    case 'rightArrow':{const t=h*A('adj1',50000),hx=w-ss*A('adj2',50000),y1=(h-t)/2;return {d:poly([[0,y1],[hx,y1],[hx,0],[w,h/2],[hx,h],[hx,h-y1],[0,h-y1]])};}
+    case 'leftArrow':{const t=h*A('adj1',50000),hx=ss*A('adj2',50000),y1=(h-t)/2;return {d:poly([[w,y1],[hx,y1],[hx,0],[0,h/2],[hx,h],[hx,h-y1],[w,h-y1]])};}
+    case 'downArrow':{const t=w*A('adj1',50000),hy=h-ss*A('adj2',50000),x1=(w-t)/2;return {d:poly([[x1,0],[w-x1,0],[w-x1,hy],[w,hy],[w/2,h],[0,hy],[x1,hy]])};}
+    case 'upArrow':{const t=w*A('adj1',50000),hy=ss*A('adj2',50000),x1=(w-t)/2;return {d:poly([[x1,h],[w-x1,h],[w-x1,hy],[w,hy],[w/2,0],[0,hy],[x1,hy]])};}
+    case 'plus':{const x=ss*A('adj',25000);return {d:poly([[x,0],[w-x,0],[w-x,x],[w,x],[w,h-x],[w-x,h-x],[w-x,h],[x,h],[x,h-x],[0,h-x],[0,x],[x,x]])};}
+    case 'snip1Rect':{const x=ss*A('adj',16667);return {d:poly([[0,0],[w-x,0],[w,x],[w,h],[0,h]])};}
+    case 'star5':{const ir=A('adj',19098)/0.5,pts=[];for(let i=0;i<10;i++){const r=i%2?ir:1,an=-Math.PI/2+i*Math.PI/5;pts.push([w/2+Math.cos(an)*w/2*r,h/2+Math.sin(an)*h/2*r]);}return {d:poly(pts)};}
+    default: return {d:`M0 0 H${w} V${h} H0 Z`};
+  }
+}
+function custPath(cg,w,h){
+  let d='';
+  for(const p of desc(cg,'path')){
+    const pw=+at(p,'w')||w*9525||1, ph=+at(p,'h')||h*9525||1;
+    const sx=w/pw, sy=h/ph; let cx=0,cy=0;
+    const pt=e=>[+at(e,'x')*sx,+at(e,'y')*sy];
+    for(const c of p.children){
+      const ps=kids(c,'pt').map(pt);
+      switch(c.localName){
+        case 'moveTo': [cx,cy]=ps[0]; d+=`M${cx} ${cy} `; break;
+        case 'lnTo': [cx,cy]=ps[0]; d+=`L${cx} ${cy} `; break;
+        case 'cubicBezTo': d+=`C${ps.map(q=>q.join(' ')).join(' ')} `; [cx,cy]=ps[2]; break;
+        case 'quadBezTo': d+=`Q${ps.map(q=>q.join(' ')).join(' ')} `; [cx,cy]=ps[1]; break;
+        case 'close': d+='Z '; break;
+        case 'arcTo':{
+          const rx=+at(c,'wR')*sx, ry=+at(c,'hR')*sy, st=+at(c,'stAng')/60000*Math.PI/180, sw=+at(c,'swAng')/60000*Math.PI/180;
+          const ox=cx-rx*Math.cos(st), oy=cy-ry*Math.sin(st);
+          const ex=ox+rx*Math.cos(st+sw), ey=oy+ry*Math.sin(st+sw);
+          d+=`A${rx} ${ry} 0 ${Math.abs(sw)>Math.PI?1:0} ${sw>0?1:0} ${ex} ${ey} `; cx=ex; cy=ey; break;
+        }
+      }
+    }
+  }
+  return d||`M0 0 H${w} V${h} H0 Z`;
+}
+function svgShape(w,h,geo,fill,line,flip){
+  const svg=document.createElementNS(SVGNS,'svg');
+  svg.setAttribute('width',Math.max(w,1)); svg.setAttribute('height',Math.max(h,1));
+  svg.setAttribute('viewBox',`0 0 ${Math.max(w,1)} ${Math.max(h,1)}`);
+  Object.assign(svg.style,{position:'absolute',left:0,top:0,overflow:'visible'});
+  if(flip) svg.style.transform=flip;
+  const path=document.createElementNS(SVGNS,'path'); path.setAttribute('d',geo.d);
+  let fillAttr='none';
+  if(!geo.open&&fill){
+    if(fill.kind==='solid') fillAttr=css(fill.color);
+    else if(fill.kind==='grad'){
+      const id='g'+(++gradSeq), defs=document.createElementNS(SVGNS,'defs');
+      const g=document.createElementNS(SVGNS,fill.radial?'radialGradient':'linearGradient'); g.id=id;
+      if(!fill.radial) g.setAttribute('gradientTransform',`rotate(${fill.ang} .5 .5)`);
+      for(const s of fill.stops){const st=document.createElementNS(SVGNS,'stop');st.setAttribute('offset',s.pos+'%');st.setAttribute('stop-color',`rgb(${s.color[0]},${s.color[1]},${s.color[2]})`);st.setAttribute('stop-opacity',s.color[3]);g.appendChild(st);}
+      defs.appendChild(g); svg.appendChild(defs); fillAttr=`url(#${id})`;
+    }
+  }
+  path.setAttribute('fill',fillAttr);
+  if(line){
+    path.setAttribute('stroke',css(line.color)); path.setAttribute('stroke-width',line.w);
+    if(line.dash&&DASH[line.dash]) path.setAttribute('stroke-dasharray',DASH[line.dash].map(v=>v*line.w).join(' '));
+    if(line.tail&&line.tail!=='none'||line.head&&line.head!=='none'){
+      const defs=document.createElementNS(SVGNS,'defs');
+      const mk=(id,rev)=>{const m=document.createElementNS(SVGNS,'marker');m.id=id;m.setAttribute('viewBox','0 0 10 10');m.setAttribute('refX',rev?1:9);m.setAttribute('refY',5);m.setAttribute('markerWidth',4);m.setAttribute('markerHeight',4);m.setAttribute('orient','auto-start-reverse');const a=document.createElementNS(SVGNS,'path');a.setAttribute('d','M0 0 L10 5 L0 10 Z');a.setAttribute('fill',css(line.color));m.appendChild(a);defs.appendChild(m);return id;};
+      if(line.tail&&line.tail!=='none') path.setAttribute('marker-end',`url(#${mk('m'+(++gradSeq))})`);
+      if(line.head&&line.head!=='none') path.setAttribute('marker-start',`url(#${mk('m'+(++gradSeq),1)})`);
+      svg.appendChild(defs);
+    }
+  } else path.setAttribute('stroke','none');
+  svg.appendChild(path);
+  return svg;
+}
+
+// ---- 텍스트 ----
+const PT=4/3; // pt → px
+function fontName(tf,theme){
+  if(!tf) return null;
+  const m={'+mj-lt':theme.major.latin,'+mn-lt':theme.minor.latin,'+mj-ea':theme.major.ea||theme.major.hang,'+mn-ea':theme.minor.ea||theme.minor.hang};
+  return tf in m?m[tf]:tf;
+}
+const yes=v=>v==='1'||v==='true';
+function lvlOf(lst,lvl){ return lst?(kid(lst,`lvl${lvl+1}pPr`)||null):null; }
+/* ctx: {C, lstChain:[lstStyle...], bodyChain:[bodyPr...], fontRefColor, fontScale, lnRed} */
+function renderTxBody(txBody,ctx,box){
+  const bodyChain=[kid(txBody,'bodyPr'),...(ctx.bodyChain||[])].filter(Boolean);
+  const bp=n=>{for(const b of bodyChain){const v=at(b,n);if(v!=null)return v;}return null;};
+  const ins=(n,d)=>{const v=bp(n);return EMU(v!=null?v:d);};
+  let fontScale=1,lnRed=0;
+  for(const b of bodyChain){const na=kid(b,'normAutofit');if(na){fontScale=(+at(na,'fontScale')||100000)/100000;lnRed=(+at(na,'lnSpcReduction')||0)/100000;break;} if(kid(b,'noAutofit')||kid(b,'spAutoFit'))break;}
+  const outer=document.createElement('div');
+  Object.assign(outer.style,{position:'absolute',left:0,top:0,width:box.w+'px',height:box.h+'px',display:'flex',flexDirection:'column',
+    padding:`${ins('tIns',45720)}px ${ins('rIns',91440)}px ${ins('bIns',45720)}px ${ins('lIns',91440)}px`,pointerEvents:'none',boxSizing:'border-box'});
+  const an=bp('anchor')||'t'; outer.style.justifyContent=an==='ctr'?'center':an==='b'?'flex-end':'flex-start';
+  const vert=bp('vert');
+  const inner=document.createElement('div');
+  const wrapNone=bp('wrap')==='none';
+  Object.assign(inner.style,{whiteSpace:wrapNone?'pre':'pre-wrap',wordBreak:'keep-all',overflowWrap:'anywhere',color:'#000'});
+  if(vert&&vert!=='horz'){inner.style.writingMode='vertical-rl';if(vert==='vert270')inner.style.transform='rotate(180deg)';}
+  if(bp('anchorCtr')==='1') inner.style.alignSelf='center';
+  let autoNum={};
+  for(const p of kids(txBody,'p')){
+    const pPr=kid(p,'pPr'), lvl=+at(pPr,'lvl')||0;
+    const chain=[pPr]; for(const l of ctx.lstChain||[]) chain.push(lvlOf(l,lvl));
+    const ch=chain.filter(Boolean);
+    const g=n=>{for(const e of ch){const v=at(e,n);if(v!=null)return v;}return null;};
+    const gk=n=>{for(const e of ch){const k=kid(e,n);if(k)return k;}return null;};
+    const defR=ch.map(e=>kid(e,'defRPr')).filter(Boolean);
+    const pd=document.createElement('div');
+    const algn=g('algn')||'l';
+    pd.style.textAlign={l:'left',ctr:'center',r:'right',just:'justify',dist:'justify',justLow:'justify'}[algn]||'left';
+    const marL=EMU(g('marL')||0), ind=EMU(g('indent')||0);
+    pd.style.paddingLeft=marL+'px'; pd.style.textIndent=ind+'px';
+    const ls=gk('lnSpc');
+    if(ls){const pc=kid(ls,'spcPct'),pp=kid(ls,'spcPts'); if(pc) pd.style.lineHeight=Math.max(0.5,(+at(pc,'val')/100000-lnRed)*1.2); else if(pp) pd.style.lineHeight=(+at(pp,'val')/100*PT*fontScale)+'px';}
+    else pd.style.lineHeight=Math.max(0.5,1.2*(1-lnRed));
+    const sp=(n,css)=>{const e=gk(n);if(!e)return;const pp=kid(e,'spcPts'),pc=kid(e,'spcPct');if(pp)pd.style[css]=(+at(pp,'val')/100*PT*fontScale)+'px';else if(pc)pd.style[css]=(+at(pc,'val')/100000)+'em';};
+    sp('spcBef','marginTop'); sp('spcAft','marginBottom');
+    const runStyle=(rPr)=>{
+      const rc=[rPr,...defR].filter(Boolean);
+      const ga=n=>{for(const e of rc){const v=at(e,n);if(v!=null)return v;}return null;};
+      const s={};
+      const sz=(+ga('sz')||1800)/100*PT*fontScale; s.fontSize=sz+'px';
+      if(yes(ga('b'))) s.fontWeight='bold';
+      if(yes(ga('i'))) s.fontStyle='italic';
+      const u=ga('u'), st=ga('strike');
+      const dec=[]; if(u&&u!=='none')dec.push('underline'); if(st&&st!=='noStrike')dec.push('line-through'); if(dec.length)s.textDecoration=dec.join(' ');
+      const cap=ga('cap'); if(cap==='all')s.textTransform='uppercase'; else if(cap==='small')s.fontVariant='small-caps';
+      const spc=ga('spc'); if(spc&&+spc) s.letterSpacing=(+spc/100*PT)+'px';
+      const bl=ga('baseline'); if(bl&&+bl){s.verticalAlign=(+bl/1000)+'%';s.fontSize=sz*0.7+'px';}
+      let col=null;
+      for(const e of rc){const f=fillOf(e,ctx.C);if(f){col=f.kind==='solid'?f.color:f.kind==='grad'?f.stops[0].color:f.kind==='none'?[0,0,0,0]:null;break;}}
+      if(!col&&ctx.fontRefColor) col=ctx.fontRefColor;
+      if(col) s.color=css(col);
+      const fk=n=>{for(const e of rc){const k=kid(e,n);if(k&&at(k,'typeface'))return fontName(at(k,'typeface'),ctx.C.theme);}return null;};
+      const lat=fk('latin')||ctx.C.theme.minor.latin, ea=fk('ea')||ctx.C.theme.minor.ea||ctx.C.theme.minor.hang;
+      s.fontFamily=[lat,ea].filter(Boolean).map(f=>`"${f}"`).concat(['"Malgun Gothic"','sans-serif']).join(',');
+      const hl=kid(rPr,'highlight'); if(hl) s.backgroundColor=css(resolveColor(colorChild(hl),ctx.C));
+      return {s,sz};
+    };
+    // 글머리표
+    let bu=null;
+    for(const e of ch){ if(kid(e,'buNone')){bu=null;break;} const c=kid(e,'buChar'); if(c){bu={ch:at(c,'char')};break;} const n=kid(e,'buAutoNum'); if(n){bu={num:at(n,'type'),start:+at(n,'startAt')||1};break;} }
+    const runs=[...p.children].filter(c=>['r','br','fld'].includes(c.localName));
+    if(bu){
+      const first=runs.find(r=>r.localName!=='br');
+      const {s}=runStyle(first?kid(first,'rPr'):null);
+      const b=document.createElement('span'); Object.assign(b.style,s); b.style.textDecoration='none';
+      if(bu.num){autoNum[lvl]=(autoNum[lvl]||bu.start-1)+1;b.textContent=autoNum[lvl]+(/Paren/.test(bu.num)?')':'.');} else b.textContent=bu.ch;
+      if(ind<0){b.style.display='inline-block';b.style.width=(-ind)+'px';b.style.textIndent='0';} else b.textContent+=' ';
+      pd.appendChild(b);
+    }
+    let maxSz=0;
+    for(const r of runs){
+      if(r.localName==='br'){pd.appendChild(document.createElement('br'));continue;}
+      const {s,sz}=runStyle(kid(r,'rPr')); maxSz=Math.max(maxSz,sz);
+      const span=document.createElement('span'); Object.assign(span.style,s);
+      span.textContent=kid(r,'t')?.textContent||'';
+      pd.appendChild(span);
+    }
+    if(!runs.some(r=>r.localName!=='br'&&(kid(r,'t')?.textContent||''))){ // 빈 문단 높이
+      const {s}=runStyle(kid(p,'endParaRPr')); const z=document.createElement('span'); z.style.fontSize=s.fontSize; z.style.fontFamily=s.fontFamily; z.textContent='​'; pd.appendChild(z);
+    }
+    inner.appendChild(pd);
+  }
+  outer.appendChild(inner);
+  return outer;
+}
+
+// ---- 선택 가능한 이미지 요소 (크롭 반영) ----
+async function cutEl(path,w,h,opt={}){
+  const m=path?await getMedia(path):null;
+  const el=document.createElement('div');
+  Object.assign(el.style,{position:'absolute',left:0,top:0,width:Math.max(w,1)+'px',height:Math.max(h,1)+'px',overflow:'hidden'});
+  if(!m||!m.img){ el.className='dpo-cut dpo-bad'; el.style.display='flex'; el.textContent=m?m.ext.toUpperCase()+' 표시불가':''; return el; }
+  const cr=opt.crop||{l:0,t:0,r:0,b:0};
+  const iw=w/Math.max(0.0001,1-cr.l-cr.r), ih=h/Math.max(0.0001,1-cr.t-cr.b);
+  const img=Object.assign(document.createElement('img'),{src:m.url,draggable:false});
+  Object.assign(img.style,{position:'absolute',left:(-cr.l*iw)+'px',top:(-cr.t*ih)+'px',width:iw+'px',height:ih+'px',maxWidth:'none'});
+  if(opt.flip) img.style.transform=opt.flip;
+  if(opt.opacity!=null) img.style.opacity=opt.opacity;
+  el.appendChild(img);
+  if(opt.radius) el.style.borderRadius=opt.radius;
+  if(!opt.selectable) return el;
+  el.className='dpo-cut';
+  const it={...m,el,sel:false,idx:CUR.items.length,crop:cr,doc:CUR};
+  el.title=`${m.img.naturalWidth}×${m.img.naturalHeight}`;
+  el.style.pointerEvents='auto';
+  el.onclick=e=>{e.stopPropagation();e.preventDefault();onCutClick(it,e);};
+  CUR.items.push(it);
+  return el;
+}
+const cropOf=blipFill=>{const s=kid(blipFill,'srcRect');if(!s)return null;const v=n=>(+at(s,n)||0)/100000;return {l:v('l'),t:v('t'),r:v('r'),b:v('b')};};
+
+// ================= PPTX =================
+async function renderPptx(){
+  const pres=await Z.xml('ppt/presentation.xml'), R=await rels(Z,'ppt/presentation.xml');
+  const sz=desc(pres,'sldSz')[0], W=EMU(at(sz,'cx')||12192000), H=EMU(at(sz,'cy')||6858000);
+  const defText=desc(pres,'defaultTextStyle')[0];
+  const ids=desc(pres,'sldId').map(s=>R[atR(s,'id')]).filter(Boolean);
+  const cache={};
+  const load=async part=>{ if(!cache[part]) cache[part]={x:await Z.xml(part),R:await rels(Z,part)}; return cache[part]; };
+  const relOf=(Rm,re)=>Object.values(Rm).find(t=>re.test(t));
+  for(let i=0;i<ids.length;i++){
+    const S=await load(ids[i]);
+    const L=await load(relOf(S.R,/slideLayouts\/slideLayout\d+\.xml$/)||'');
+    const M=await load(relOf(L.R||{},/slideMasters\/slideMaster\d+\.xml$/)||'');
+    if(!M.theme){ const tp=relOf(M.R||{},/theme\/theme\d+\.xml$/); M.theme=parseTheme(tp?await Z.xml(tp):null); }
+    const cm=M.x?desc(M.x,'clrMap')[0]:null; const map={...DEFMAP};
+    if(cm) for(const a of cm.attributes) map[a.localName]=a.value;
+    const ov=S.x&&desc(S.x,'overrideClrMapping')[0]; if(ov) for(const a of ov.attributes) map[a.localName]=a.value;
+    const C={theme:M.theme,map};
+    const txS=M.x?desc(M.x,'txStyles')[0]:null;
+    const env={C,defText,txStyles:{title:kid(txS,'titleStyle'),body:kid(txS,'bodyStyle'),other:kid(txS,'otherStyle')},layout:L,master:M};
+
+    const t=document.createElement('div'); t.className='dpo-ttl'; t.textContent='슬라이드 '+(i+1); VIEW.appendChild(t);
+    const s=document.createElement('div'); s.className='dpo-slide'; s.style.width=W+'px'; s.style.height=H+'px';
+    VIEW.appendChild(s);
+    // 배경: 슬라이드 → 레이아웃 → 마스터
+    let bg=null;
+    for(const P of [S,L,M]){ const b=P.x&&desc(P.x,'bg')[0]; if(!b) continue;
+      const pr=kid(b,'bgPr'); bg={f:pr?fillOf(pr,C):refFill(kid(b,'bgRef'),C,true),R:P.R}; break; }
+    if(bg) await applyBg(s,bg.f,bg.R); else s.style.background='#fff';
+    const I=(x,y,w,h)=>({x,y,w,h});
+    const showMaster=at(S.x?.documentElement,'showMasterSp')!=='0'&&at(L.x?.documentElement,'showMasterSp')!=='0';
+    if(showMaster&&M.x) await drawTree(desc(M.x,'spTree')[0],s,{...env,R:M.R,kind:'master'},I);
+    if(L.x) await drawTree(desc(L.x,'spTree')[0],s,{...env,R:L.R,kind:'layout'},I);
+    await drawTree(desc(S.x,'spTree')[0],s,{...env,R:S.R,kind:'slide',selectable:true},I);
+  }
+}
+function phOf(node){
+  for(const n of ['nvSpPr','nvPicPr','nvGraphicFramePr','nvCxnSpPr','nvGrpSpPr']){ const nv=kid(node,n); if(nv){ const ph=path1(nv,'nvPr','ph'); return ph?{type:at(ph,'type')||'body',idx:at(ph,'idx')}:null; } }
+  return null;
+}
+const normT=t=>t==='ctrTitle'?'title':['subTitle','obj','body'].includes(t)?'body':t;
+function findPh(tree,ph,byIdx){
+  if(!tree) return null;
+  const all=[...desc(tree,'sp'),...desc(tree,'pic')];
+  if(byIdx&&ph.idx!=null){ const m=all.find(n=>{const p=phOf(n);return p&&p.idx===ph.idx;}); if(m) return m; }
+  return all.find(n=>{const p=phOf(n);return p&&p.type===ph.type;})||all.find(n=>{const p=phOf(n);return p&&normT(p.type)===normT(ph.type);})||null;
+}
+async function drawTree(tree,out,env,T){
+  if(!tree) return;
+  for(const c of tree.children){
+    const n=c.localName;
+    if(n==='AlternateContent'){
+      const ch=kid(c,'Choice'), fb=kid(c,'Fallback');
+      const use=ch&&!/cx|aink|am3d|p159/.test(at(ch,'Requires')||'')?ch:(fb||ch);
+      if(use) await drawTree(use,out,env,T); continue;
+    }
+    const ph=phOf(c);
+    if(ph&&env.kind!=='slide') continue;      // 레이아웃·마스터의 자리표시자는 그리지 않음
+    if(at(desc(c,'cNvPr')[0],'hidden')==='1') continue;
+    if(n==='grpSp'){
+      const g=xf(kid(c,'grpSpPr')); if(!g){await drawTree(c,out,env,T);continue;}
+      const sx=g.cw?g.w/g.cw:1, sy=g.ch?g.h/g.ch:1;
+      await drawTree(c,out,{...env,grpFill:fillOf(kid(c,'grpSpPr'),env.C)||env.grpFill},(x,y,w,h)=>T(g.x+(x-g.cx)*sx,g.y+(y-g.cy)*sy,w*sx,h*sy));
+      continue;
+    }
+    if(['sp','pic','cxnSp','graphicFrame'].includes(n)) await drawNode(c,out,env,T,ph);
+  }
+}
+async function drawNode(c,out,env,T,ph){
+  const n=c.localName, C=env.C;
+  // 자리표시자 상속
+  let lph=null,mph=null;
+  if(ph&&env.kind==='slide'){ lph=findPh(desc(env.layout.x,'spTree')[0],ph,true); mph=findPh(desc(env.master.x,'spTree')[0],lph?phOf(lph)||ph:ph,false); }
+  const spPr=kid(c,'spPr');
+  const f=xf(n==='graphicFrame'?c:spPr)||(lph&&xf(kid(lph,'spPr')))||(mph&&xf(kid(mph,'spPr')));
+  if(!f) return;
+  const r=T(f.x,f.y,f.w,f.h), box={x:EMU(r.x),y:EMU(r.y),w:EMU(r.w),h:EMU(r.h)};
+  const wrap=document.createElement('div');
+  Object.assign(wrap.style,{position:'absolute',left:box.x+'px',top:box.y+'px',width:box.w+'px',height:box.h+'px',pointerEvents:'none'});
+  if(f.rot) wrap.style.transform=`rotate(${f.rot}deg)`;
+  const flip=(f.fh||f.fv)?`scale(${f.fh?-1:1},${f.fv?-1:1})`:'';
+  const geoPr=(spPr&&(kid(spPr,'prstGeom')||kid(spPr,'custGeom')))?spPr:(lph&&kid(lph,'spPr'))||spPr;
+
+  if(n==='graphicFrame'){ await drawFrame(c,wrap,env,box,T,f); out.appendChild(wrap); return; }
+
+  // 채우기·선
+  let fill=fillOf(spPr,C); if(!fill&&lph) fill=fillOf(kid(lph,'spPr'),C); if(!fill&&mph) fill=fillOf(kid(mph,'spPr'),C);
+  if(!fill) fill=refFill(path1(c,'style','fillRef'),C);
+  if(fill&&fill.kind==='grp') fill=env.grpFill||null;
+  const lnEl=kid(spPr,'ln')||(lph&&kid(kid(lph,'spPr'),'ln'))||null;
+  let line=lineFrom(lnEl,C,styleLine(c,C));
+  if(lnEl&&!fillOf(lnEl,C)&&!path1(c,'style','lnRef')) line=null;
+
+  const blipFill=kid(c,'blipFill')||(fill&&fill.kind==='blip'?fill.el:null);
+  if(blipFill){
+    const blip=desc(blipFill,'blip')[0];
+    const am=blip&&desc(blip,'alphaModFix')[0];
+    const pg=kid(geoPr,'prstGeom'), prst=pg&&at(pg,'prst');
+    const radius=prst==='ellipse'?'50%':prst==='roundRect'?(Math.min(box.w,box.h)*adjOf(pg,'adj',16667)/100000)+'px':null;
+    const el=await cutEl(blip?env.R[at(blip,'embed')||at(blip,'link')]:null,box.w,box.h,{crop:cropOf(blipFill),flip,radius,selectable:!!env.selectable,opacity:am?+at(am,'amt')/100000:null});
+    wrap.appendChild(el);
+    if(line) wrap.appendChild(svgShape(box.w,box.h,geomPath(geoPr,box.w,box.h),null,line));
+  } else if((fill&&fill.kind!=='none')||line){
+    wrap.appendChild(svgShape(box.w,box.h,geomPath(geoPr,box.w,box.h),fill,line,flip));
+  }
+  // 텍스트
+  const tx=kid(c,'txBody');
+  if(tx&&desc(tx,'t').some(t=>t.textContent.length)){
+    const lstChain=[kid(tx,'lstStyle')];
+    let kind='other';
+    if(ph){
+      if(lph) lstChain.push(path1(lph,'txBody','lstStyle'));
+      if(mph) lstChain.push(path1(mph,'txBody','lstStyle'));
+      kind=normT(ph.type)==='title'?'title':normT(ph.type)==='body'?'body':'other';
+      lstChain.push(env.txStyles[kind]);
+    } else lstChain.push(env.defText);
+    const bodyChain=[lph&&path1(lph,'txBody','bodyPr'),mph&&path1(mph,'txBody','bodyPr')].filter(Boolean);
+    const fr=path1(c,'style','fontRef');
+    wrap.appendChild(renderTxBody(tx,{C,lstChain:lstChain.filter(Boolean),bodyChain,fontRefColor:fr?resolveColor(colorChild(fr),C):null},box));
+  }
+  out.appendChild(wrap);
+}
+async function drawFrame(c,wrap,env,box,T,f){
+  const gd=desc(c,'graphicData')[0], uri=at(gd,'uri')||'';
+  if(/table/.test(uri)){ const tbl=desc(gd,'tbl')[0]; if(tbl) wrap.appendChild(await drawTable(tbl,env,box)); return; }
+  if(/diagram/.test(uri)){ // SmartArt: 미리 그려진 도형(drawing) 사용
+    const ri=desc(gd,'relIds')[0], dm=ri&&env.R[atR(ri,'dm')];
+    let drawPart=null;
+    if(dm){ const dx=await Z.xml(dm); const ext=dx&&desc(dx,'dataModelExt')[0]; if(ext) drawPart=env.R[at(ext,'relId')]; }
+    if(drawPart){ const dx=await Z.xml(drawPart), DR=await rels(Z,drawPart);
+      const inner=document.createElement('div'); Object.assign(inner.style,{position:'absolute',left:-box.x+'px',top:-box.y+'px'});
+      await drawTree(desc(dx,'spTree')[0],inner,{...env,R:DR,kind:'diagram',selectable:env.selectable},(x,y,w,h)=>T(f.x+x,f.y+y,w,h));
+      wrap.appendChild(inner); return; }
+  }
+  if(/picture/.test(uri)){ const pic=desc(gd,'pic')[0]; if(pic){ const inner=document.createElement('div'); Object.assign(inner.style,{position:'absolute',left:-box.x+'px',top:-box.y+'px'}); await drawNode(pic,inner,env,T,null); wrap.appendChild(inner); return; } }
+  // 차트 등: 영역 표시
+  Object.assign(wrap.style,{border:'1px dashed #aaa',background:'#f4f4f4',color:'#888',fontSize:'12px',display:'flex',alignItems:'center',justifyContent:'center'});
+  wrap.textContent=/chart/.test(uri)?'차트':'개체';
+}
+async function drawTable(tbl,env,box){
+  const C=env.C;
+  const tp=kid(tbl,'tblPr'), sid=kid(tp,'tableStyleId')?.textContent;
+  if(!env.tblStyles){ const tx=await Z.xml('ppt/tableStyles.xml'); env.tblStyles=tx?desc(tx,'tblStyle'):[]; }
+  let ts=env.tblStyles.find(s=>at(s,'styleId')===sid)||null;
+  const part=nm=>ts?kid(ts,nm):null;
+  const partFill=p=>{ if(!p) return null; const tcs=kid(p,'tcStyle'); if(!tcs) return null; const fl=kid(tcs,'fill'); if(fl) return fillOf(fl,C); const fr=kid(tcs,'fillRef'); return fr?refFill(fr,C):null; };
+  const partBdr=(p,side)=>{ const b=path1(p,'tcStyle','tcBdr',side); if(!b) return undefined; const ln=kid(b,'ln'); if(ln) return lineFrom(ln,C,null); const lr=kid(b,'lnRef'); return lr?{w:1,color:resolveColor(colorChild(lr),C)}:undefined; };
+  const partTx=p=>{ const t=path1(p,'tcTxStyle'); if(!t) return null; return {b:at(t,'b')==='on',color:resolveColor(colorChild(t),C)}; };
+  // 파일에 없는 기본 스타일(보통 2 - 강조 1) 근사
+  const DEF='{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}';
+  const synth=!ts&&sid===DEF;
+  const acc=hex(C.theme.colors.accent1||'4472C4');
+  const tintC=t=>[...acc.map(x=>Math.round(x+(255-x)*(1-t))),1];
+  const firstRow=at(tp,'firstRow')==='1', bandRow=at(tp,'bandRow')==='1', lastRow=at(tp,'lastRow')==='1', firstCol=at(tp,'firstCol')==='1';
+  const t=document.createElement('table');
+  Object.assign(t.style,{borderCollapse:'collapse',tableLayout:'fixed',position:'absolute',left:0,top:0});
+  const cols=desc(kid(tbl,'tblGrid'),'gridCol').map(g=>EMU(at(g,'w')));
+  t.style.width=cols.reduce((a,b)=>a+b,0)+'px';
+  const cg=document.createElement('colgroup'); for(const w of cols){const co=document.createElement('col');co.style.width=w+'px';cg.appendChild(co);} t.appendChild(cg);
+  const rows=kids(tbl,'tr');
+  rows.forEach((tr,ri)=>{
+    const row=t.insertRow(); row.style.height=EMU(at(tr,'h'))+'px';
+    kids(tr,'tc').forEach((tc,ci)=>{
+      if(at(tc,'hMerge')==='1'||at(tc,'vMerge')==='1') return;
+      const td=row.insertCell();
+      if(at(tc,'gridSpan')) td.colSpan=+at(tc,'gridSpan');
+      if(at(tc,'rowSpan')) td.rowSpan=+at(tc,'rowSpan');
+      const pr=kid(tc,'tcPr');
+      const parts=[part('wholeTbl')];
+      const bodyIdx=firstRow?ri-1:ri;
+      if(bandRow&&bodyIdx>=0&&bodyIdx%2===0&&!(firstRow&&ri===0)) parts.push(part('band1H'));
+      if(firstCol&&ci===0) parts.push(part('firstCol'));
+      if(lastRow&&ri===rows.length-1) parts.push(part('lastRow'));
+      if(firstRow&&ri===0) parts.push(part('firstRow'));
+      let fill=null, tx={};
+      for(const p of parts){ const f=partFill(p); if(f) fill=f; const x=partTx(p); if(x) tx=x; }
+      if(synth){ fill={kind:'solid',color:firstRow&&ri===0?[...acc,1]:(bandRow&&bodyIdx%2===0?tintC(0.4):tintC(0.2))}; if(firstRow&&ri===0) tx={b:true,color:[255,255,255,1]}; }
+      const own=fillOf(pr,C); if(own) fill=own;
+      if(fill&&fill.kind==='solid') td.style.background=css(fill.color); else if(fill&&fill.kind==='grad') td.style.background=gradCss(fill);
+      for(const [side,key,css2] of [['lnL','left','borderLeft'],['lnR','right','borderRight'],['lnT','top','borderTop'],['lnB','bottom','borderBottom']]){
+        let ln=kid(pr,side)?lineFrom(kid(pr,side),C,null):undefined;
+        if(ln===undefined){ for(const p of parts){ const b=partBdr(p,key)??partBdr(p,key==='left'||key==='right'?'insideV':'insideH'); if(b!==undefined) ln=b; } }
+        if(synth&&ln===undefined) ln={w:1,color:[255,255,255,1]};
+        if(ln) td.style[css2]=`${Math.max(1,ln.w)}px solid ${css(ln.color)}`;
+      }
+      const m=(n,d)=>EMU(at(pr,n)!=null?at(pr,n):d);
+      td.style.padding=`${m('marT',45720)}px ${m('marR',91440)}px ${m('marB',45720)}px ${m('marL',91440)}px`;
+      td.style.verticalAlign=({ctr:'middle',b:'bottom'})[at(pr,'anchor')]||'top';
+      td.style.position='relative';
+      const txb=kid(tc,'txBody');
+      if(txb){
+        const lst=[kid(txb,'lstStyle'),env.defText];
+        const el=renderTxBody(txb,{C,lstChain:lst.filter(Boolean),bodyChain:[],fontRefColor:tx.color||null},{w:0,h:0});
+        Object.assign(el.style,{position:'static',width:'auto',height:'auto',padding:0});
+        if(tx.b) el.style.fontWeight='bold';
+        td.appendChild(el);
+      }
+    });
+  });
+  return t;
+}
+
+// ================= XLSX =================
+async function renderXlsx(){
+  const wb=await Z.xml('xl/workbook.xml'), R=await rels(Z,'xl/workbook.xml');
+  const ssx=await Z.xml('xl/sharedStrings.xml');
+  const ss=ssx?kids(ssx.documentElement,'si').map(si=>desc(si,'t').map(t=>t.textContent).join('')):[];
+  for(const sh of desc(wb,'sheet')){
+    const part=R[atR(sh,'id')]; if(!part) continue;
+    const x=await Z.xml(part); if(!x) continue;
+    const SR=await rels(Z,part);
+    // 셀 값
+    const cells={}; let maxR=0,maxC=0;
+    const colIdx=s=>{let n=0;for(const ch of s)n=n*26+ch.charCodeAt(0)-64;return n-1;};
+    for(const c of desc(x,'c')){
+      const ref=at(c,'r')||''; const m=ref.match(/^([A-Z]+)(\d+)$/); if(!m) continue;
+      const ci=colIdx(m[1]), ri=+m[2]-1, t=at(c,'t');
+      let v=t==='inlineStr'?desc(c,'t').map(e=>e.textContent).join(''):(kid(c,'v')?.textContent??'');
+      if(t==='s') v=ss[+v]??'';
+      if(v==='') continue;
+      cells[ri+','+ci]=v; maxR=Math.max(maxR,ri); maxC=Math.max(maxC,ci);
+    }
+    // 열/행 크기
+    const fmt=desc(x,'sheetFormatPr')[0];
+    const defW=at(fmt,'defaultColWidth'), defColPx=defW?Math.round(defW*7+5):64;
+    const defRowPx=(+at(fmt,'defaultRowHeight')||15)*4/3;
+    const colW={}; for(const col of desc(x,'col')){ for(let i=+at(col,'min');i<=+at(col,'max')&&i<2000;i++) colW[i-1]=at(col,'hidden')==='1'?0:Math.round(+at(col,'width')*7+5); }
+    const rowH={}; for(const row of desc(x,'row')){ const ht=at(row,'ht'); if(ht) rowH[+at(row,'r')-1]=at(row,'hidden')==='1'?0:ht*4/3; }
+    const cw=i=>colW[i]??defColPx, rh=i=>rowH[i]??defRowPx;
+    // 도형 앵커
+    const anchors=[];
+    const drawPart=Object.values(SR).find(t=>/drawings\/drawing\d+\.xml$/.test(t));
+    let DR={};
+    if(drawPart){
+      const dx=await Z.xml(drawPart); DR=await rels(Z,drawPart);
+      for(const a of dx.documentElement.children){
+        const fr=kid(a,'from'), to=kid(a,'to');
+        const cell=e=>({c:+kid(e,'col').textContent,co:EMU(kid(e,'colOff').textContent),r:+kid(e,'row').textContent,ro:EMU(kid(e,'rowOff').textContent)});
+        anchors.push({a,from:fr&&cell(fr),to:to&&cell(to),ext:kid(a,'ext'),pos:kid(a,'pos')});
+        if(fr){maxC=Math.max(maxC,cell(fr).c);maxR=Math.max(maxR,cell(fr).r);}
+        if(to){maxC=Math.max(maxC,cell(to).c);maxR=Math.max(maxR,cell(to).r);}
+      }
+    }
+    // 위치 계산용 좌표(넉넉히) → 이미지 상자 계산 → 실제 표시 범위 결정
+    const LR=Math.min(maxR+400,5000), LC=Math.min(maxC+60,300);
+    const X=[0],Y=[0]; for(let i=0;i<=LC;i++)X.push(X[i]+cw(i)); for(let i=0;i<=LR;i++)Y.push(Y[i]+rh(i));
+    const P=p=>({x:X[Math.min(p.c,LC)]+p.co,y:Y[Math.min(p.r,LR)]+p.ro});
+    const boxes=[];
+    for(const an of anchors){
+      let box;
+      if(an.from&&an.to){const a=P(an.from),b=P(an.to);box={x:a.x,y:a.y,w:b.x-a.x,h:b.y-a.y};}
+      else if(an.from&&an.ext){const a=P(an.from);box={x:a.x,y:a.y,w:EMU(at(an.ext,'cx')),h:EMU(at(an.ext,'cy'))};}
+      else if(an.pos&&an.ext){box={x:EMU(at(an.pos,'x')),y:EMU(at(an.pos,'y')),w:EMU(at(an.ext,'cx')),h:EMU(at(an.ext,'cy'))};}
+      else continue;
+      const pic=kid(an.a,'pic'), grp=kid(an.a,'grpSp');
+      if(pic){ const b=desc(pic,'blip')[0]; if(b) boxes.push({path:DR[at(b,'embed')],...box}); }
+      else if(grp){ // 그룹: 앵커 상자 안에서 자식 위치 환산
+        const g=xf(kid(grp,'grpSpPr'));
+        for(const p of desc(grp,'pic')){
+          const f=xf(kid(p,'spPr')), b=desc(p,'blip')[0]; if(!f||!b||!g) continue;
+          const sx=box.w/EMU(g.cw||g.w||1), sy=box.h/EMU(g.ch||g.h||1);
+          boxes.push({path:DR[at(b,'embed')],x:box.x+EMU(f.x-g.cx)*sx,y:box.y+EMU(f.y-g.cy)*sy,w:EMU(f.w)*sx,h:EMU(f.h)*sy});
+        }
+      }
+    }
+    for(const b of boxes){
+      while(maxC<LC&&X[maxC+1]<b.x+b.w) maxC++;
+      while(maxR<LR&&Y[maxR+1]<b.y+b.h) maxR++;
+    }
+    maxR=Math.min(maxR+2,LR); maxC=Math.min(maxC+2,LC);
+    // 그리기
+    const t=document.createElement('div'); t.className='dpo-ttl'; t.textContent='시트: '+at(sh,'name'); VIEW.appendChild(t);
+    const s=document.createElement('div'); s.className='dpo-sheet'; s.style.width=X[maxC+1]+'px'; s.style.height=Y[maxR+1]+'px';
+    const tb=document.createElement('table'); tb.style.width=X[maxC+1]+'px';
+    const cg=document.createElement('colgroup'); for(let c=0;c<=maxC;c++){const co=document.createElement('col');co.style.width=cw(c)+'px';cg.appendChild(co);} tb.appendChild(cg);
+    for(let r=0;r<=maxR;r++){ const tr=tb.insertRow(); tr.style.height=rh(r)+'px'; for(let c=0;c<=maxC;c++){ const td=tr.insertCell(); const v=cells[r+','+c]; if(v!==undefined) td.textContent=v; } }
+    s.appendChild(tb);
+    for(const b of boxes) s.appendChild(await placeCut(b.path,b.w,b.h,b));
+    VIEW.appendChild(s);
+  }
+}
+
+// ================= CUT 연동 (V1156) =================
+const OFFICE_RE=/\.(pptx|pptm|docx|docm|xlsx|xlsm)$/i;
+const BLUE='#1684f2';
+let VIEW=null, CUR=null, Z=null, media={};
+const docs=[]; let selOrder=[], activeDoc=null;
+const seenFiles=new WeakSet();
+const $id=id=>document.getElementById(id);
+
+// ---------- 화면 요소 ----------
+let tiles=null, oview=null, obar=null, oinfo=null, ohost=null;
+function copyBtnLook(btn){
+  const ref=$id('addBtn'); if(!ref) return;
+  const cs=getComputedStyle(ref);
+  ['fontFamily','fontSize','fontWeight','color','background','backgroundColor','border','borderRadius','padding','height','lineHeight','boxShadow','minHeight'].forEach(k=>{btn.style[k]=cs[k];});
+}
+function ensureUI(){
+  if(tiles) return;
+  const mp=$id('multiPreview');
+  tiles=document.createElement('div'); tiles.id='dpcOfficeDocs';
+  tiles.style.cssText=mp?mp.getAttribute('style'):'display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;';
+  tiles.style.marginTop='8px';
+  mp.parentNode.insertBefore(tiles,mp.nextSibling);
+  oview=document.createElement('div'); oview.id='dpcOfficeView'; oview.style.display='none';
+  obar=document.createElement('div'); obar.className='dpc-of-bar';
+  oinfo=document.createElement('span'); oinfo.className='dpc-of-info';
+  const btns=document.createElement('div'); btns.className='dpc-of-btns';
+  const mk=(t,fn)=>{const b=document.createElement('button');b.type='button';b.textContent=t;copyBtnLook(b);b.onclick=fn;btns.appendChild(b);return b;};
+  mk('전체 선택',()=>{ if(!activeDoc) return; activeDoc.items.forEach(it=>{if(!it.sel){it.sel=true;selOrder.push(it);}}); updateSel(); });
+  mk('선택 해제',()=>{ if(!activeDoc) return; activeDoc.items.forEach(it=>it.sel=false); selOrder=selOrder.filter(x=>x.sel); updateSel(); });
+  obar.appendChild(oinfo); obar.appendChild(btns);
+  ohost=document.createElement('div'); ohost.className='dpc-of-host';
+  oview.appendChild(obar); oview.appendChild(ohost);
+  const pv=$id('preview'); pv.parentNode.insertBefore(oview,pv.nextSibling);
+  // CUT이 이미지 미리보기를 열면 문서 보기는 닫는다
+  new MutationObserver(()=>{ if(pv.style.display!=='none'&&pv.getAttribute('src')){ hideDoc(); } }).observe(pv,{attributes:true,attributeFilter:['src','style']});
+  // 원본 제목에 문서 수 덧붙이기
+  const tt=$id('thumbTitle');
+  new MutationObserver(()=>fixTitle()).observe(tt,{childList:true,characterData:true,subtree:true});
+  new ResizeObserver(()=>fitAll()).observe(oview);
+}
+function fixTitle(){
+  const tt=$id('thumbTitle'); if(!tt) return;
+  const n=(window.multiPreview&&multiPreview.children.length)||0;
+  const want=docs.length?(n?`원본 (${n}장 · 문서 ${docs.length})`:`원본 (문서 ${docs.length})`):`원본 (${n}장)`;
+  if(tt.textContent!==want) tt.textContent=want;
+}
+function tileFor(doc){
+  const wrap=document.createElement('div'); wrap.style.position='relative';
+  const t=document.createElement('div'); t.className='dpc-of-tile';
+  const ext=(doc.name.match(/\.(\w+)$/)||[,''])[1].toUpperCase();
+  t.innerHTML=`<b>${ext}</b><span></span>`; t.querySelector('span').textContent=doc.name;
+  t.onclick=()=>showDoc(doc);
+  const del=document.createElement('button'); del.textContent='✕'; del.type='button';
+  Object.assign(del.style,{position:'absolute',top:'2px',right:'2px',padding:'2px 6px'});
+  del.onclick=ev=>{ev.stopPropagation();removeDoc(doc);};
+  wrap.appendChild(t); wrap.appendChild(del);
+  doc.tile=t;
+  return wrap;
+}
+
+// ---------- 패널 표시 (기존 함수 보강) ----------
+const _upd=window.__updateMainPanels;
+window.__updateMainPanels=function(){
+  _upd&&_upd.apply(this,arguments);
+  if(!docs.length) return;
+  const tp=$id('thumbPanel'), pp=$id('previewPanel');
+  if(tp) tp.style.display='block'; if(pp) pp.style.display='block';
+  const eh=$id('emptyHint'); if(eh&&!(window.multiPreview&&multiPreview.children.length)) eh.style.display='none';
+};
+function restoreDocUI(){
+  if(!docs.length) return;
+  try{ __hideIntroHero(); }catch(e){}
+  window.__updateMainPanels(); fixTitle();
+  const pv=$id('preview');
+  if(!(pv.style.display!=='none'&&pv.getAttribute('src'))) showDoc(activeDoc&&docs.includes(activeDoc)?activeDoc:docs[docs.length-1]);
+}
+const _clearWs=window.__clearCutWorkspace;
+window.__clearCutWorkspace=function(){ const r=_clearWs.apply(this,arguments); setTimeout(restoreDocUI,0); return r; };
+const _clearBtn=clearBtn.onclick;
+clearBtn.onclick=function(ev){ if(ev) clearDocs(); return _clearBtn.apply(this,arguments); };
+
+// ---------- 입력: 오피스 파일 가로채기 ----------
+try{ file.setAttribute('accept',(file.getAttribute('accept')||'image/*')+',.pptx,.pptm,.docx,.docm,.xlsx,.xlsm'); }catch(e){}
+const _filter=window.__cutOnlySupportedImages;
+window.__cutOnlySupportedImages=function(list,notify){
+  const all=Array.from(list||[]);
+  const office=all.filter(f=>OFFICE_RE.test(f&&f.name||''));
+  const fresh=office.filter(f=>!seenFiles.has(f)); fresh.forEach(f=>seenFiles.add(f));
+  if(fresh.length) setTimeout(()=>importDocs(fresh),0);
+  return _filter.call(this,all.filter(f=>!OFFICE_RE.test(f&&f.name||'')),notify&&office.length===0);
+};
+
+async function importDocs(files){
+  ensureUI();
+  try{ __hideIntroHero(); }catch(e){}
+  for(const f of files){
+    const doc={name:f.name,base:f.name.replace(/\.[^.]+$/,''),items:[],media:{},view:document.createElement('div'),lastClick:-1,loading:true};
+    doc.view.className='dpc-of-doc';
+    docs.push(doc);
+    tiles.appendChild(tileFor(doc));
+    window.__updateMainPanels(); fixTitle();
+    showDoc(doc);
+    try{
+      Z=await readZip(await f.arrayBuffer()); media=doc.media; CUR=doc; VIEW=doc.view;
+      if(Z.has('ppt/presentation.xml')) await renderPptx();
+      else if(Z.has('word/document.xml')) await renderDocx();
+      else if(Z.has('xl/workbook.xml')) await renderXlsx();
+      else throw new Error('지원하지 않는 형식');
+      wrapHosts(doc);
+    }catch(err){ console.error('[CUT office import]',err); doc.view.textContent='문서를 읽지 못했습니다: '+(err&&err.message||err); }
+    finally{ Z=null; CUR=null; VIEW=null; doc.loading=false; }
+    if(activeDoc===doc){ showDoc(doc); orderItems(doc); }
+    if(!(window.sourceFiles&&sourceFiles.length)&&docs.length===1){ try{ baseName=doc.base; }catch(e){} }
+    updateSel();
+  }
+}
+function removeDoc(doc){
+  const i=docs.indexOf(doc); if(i<0) return;
+  docs.splice(i,1);
+  selOrder=selOrder.filter(x=>x.doc!==doc);
+  Object.values(doc.media).forEach(m=>m&&URL.revokeObjectURL(m.url));
+  doc.view.remove(); if(doc.tile) doc.tile.parentNode.remove();
+  if(activeDoc===doc) activeDoc=null;
+  fixTitle();
+  if(docs.length){ showDoc(docs[docs.length-1]); window.__updateMainPanels(); return; }
+  hideDoc();
+  const first=window.multiPreview&&multiPreview.querySelector('img');
+  if(first&&first.src) try{ __openPreviewFromThumbnail(first.src); }catch(e){}
+  else { try{ __clearCutWorkspace(true); }catch(e){} }
+  window.__updateMainPanels();
+}
+function clearDocs(){ [...docs].forEach(d=>{ Object.values(d.media).forEach(m=>m&&URL.revokeObjectURL(m.url)); d.view.remove(); if(d.tile) d.tile.parentNode.remove(); }); docs.length=0; selOrder=[]; activeDoc=null; hideDoc(); fixTitle(); }
+function showDoc(doc){
+  ensureUI(); activeDoc=doc;
+  const pv=$id('preview'); pv.style.display='none';
+  docs.forEach(d=>{ d.view.style.display=d===doc?'flex':'none'; if(d.tile) d.tile.classList.toggle('on',d===doc); if(!d.loading&&d.view.parentNode!==ohost) ohost.appendChild(d.view); });
+  oview.style.display='block';
+  try{ __setPreviewCollapsed(false); }catch(e){}
+  fitAll(); updateSel();
+}
+function hideDoc(){ if(oview) oview.style.display='none'; docs.forEach(d=>d.tile&&d.tile.classList.remove('on')); }
+
+// ---------- 화면 폭 맞춤 ----------
+function wrapHosts(doc){
+  doc.view.querySelectorAll('.dpo-slide,.dpo-page,.dpo-sheet').forEach(h=>{
+    if(h.parentNode.classList.contains('dpc-of-fit')) return;
+    const w=document.createElement('div'); w.className='dpc-of-fit';
+    h.parentNode.insertBefore(w,h); w.appendChild(h);
+    Object.assign(h.style,{position:'absolute',left:0,top:0,transformOrigin:'0 0'});
+  });
+}
+function fitAll(){
+  if(!activeDoc||!oview||oview.style.display==='none') return;
+  const avail=ohost.clientWidth-2; if(avail<=0) return;
+  activeDoc.view.querySelectorAll('.dpc-of-fit').forEach(w=>{
+    const h=w.firstChild, hw=h.offsetWidth, hh=h.offsetHeight; if(!hw) return;
+    const s=Math.min(1,avail/hw);
+    h.style.transform=`scale(${s})`; w.style.width=hw*s+'px'; w.style.height=hh*s+'px';
+  });
+  updateSel();
+}
+
+// ---------- 선택 ----------
+function onCutClick(it,e){
+  const d=it.doc;
+  if(e.shiftKey&&d.lastClick>=0){const [a,b]=[Math.min(d.lastClick,it.idx),Math.max(d.lastClick,it.idx)];for(let k=a;k<=b;k++)if(!d.items[k].sel){d.items[k].sel=true;selOrder.push(d.items[k]);}}
+  else if(it.sel){it.sel=false;selOrder=selOrder.filter(x=>x!==it);}
+  else {it.sel=true;selOrder.push(it);}
+  d.lastClick=it.idx; updateSel();
+}
+function updateSel(){
+  if(!oview) return;
+  oview.querySelectorAll('.dpc-of-sel').forEach(e=>e.remove());
+  selOrder=selOrder.filter(x=>x.sel&&docs.includes(x.doc));
+  selOrder.forEach((it,k)=>{
+    if(it.doc!==activeDoc) return;
+    const host=it.el.closest('.dpo-slide,.dpo-page,.dpo-sheet'); if(!host) return;
+    let layer=host.querySelector(':scope>.dpc-of-sel'); if(!layer){layer=document.createElement('div');layer.className='dpc-of-sel';host.appendChild(layer);}
+    const hr=host.getBoundingClientRect(), r=it.el.getBoundingClientRect(), z=host.offsetWidth/(hr.width||1);
+    const bx=document.createElement('div'); bx.className='dpc-of-box'; bx.dataset.no=k+1;
+    Object.assign(bx.style,{left:(r.left-hr.left)*z+'px',top:(r.top-hr.top)*z+'px',width:r.width*z+'px',height:r.height*z+'px'});
+    layer.appendChild(bx);
+  });
+  if(activeDoc&&oinfo){
+    if(activeDoc.loading){ oinfo.textContent=`${activeDoc.name} 읽는 중…`; return; }
+    const n=activeDoc.items.length, s=selOrder.length;
+    oinfo.textContent=`${activeDoc.name} · 이미지 ${n}개 · `+(s?`선택 ${s}컷`:`선택 없음 (CUT 실행 시 전체)`);
+  }
+}
+function orderItems(doc){
+  const hosts=[...doc.view.querySelectorAll('.dpo-slide,.dpo-page,.dpo-sheet')];
+  const info=doc.items.map(it=>{const r=it.el.getBoundingClientRect();return {it,h:hosts.indexOf(it.el.closest('.dpo-slide,.dpo-page,.dpo-sheet')),t:r.top,l:r.left,hh:r.height};});
+  info.sort((a,b)=>a.h-b.h||a.t-b.t);
+  let row=0,rowTop=null,rowH=0,ph=-1;
+  for(const x of info){ if(x.h!==ph||rowTop===null||x.t>rowTop+rowH*0.5){row++;rowTop=x.t;rowH=x.hh;ph=x.h;} else rowH=Math.min(rowH,x.hh); x.row=row; }
+  info.sort((a,b)=>a.row-b.row||a.l-b.l);
+  doc.items=info.map(x=>x.it); doc.items.forEach((it,i)=>it.idx=i);
+}
+
+// ---------- CUT 실행: 선택 컷 → 결과 카드 ----------
+function cutDataURL(it){
+  const c=it.crop||{l:0,t:0,r:0,b:0}, nw=it.img.naturalWidth, nh=it.img.naturalHeight;
+  const sx=Math.max(0,c.l*nw), sy=Math.max(0,c.t*nh);
+  const sw=Math.max(1,Math.round(Math.min(nw,(1-c.r)*nw)-sx)), sh=Math.max(1,Math.round(Math.min(nh,(1-c.b)*nh)-sy));
+  const cv=document.createElement('canvas'); cv.width=sw; cv.height=sh;
+  cv.getContext('2d').drawImage(it.img,sx,sy,sw,sh,0,0,sw,sh);
+  const url=cv.toDataURL('image/png'); cv.width=cv.height=0; return url;
+}
+function gifDataURL(it){ // 움직이는 GIF는 원본 그대로(애니메이션 유지)
+  return new Promise(res=>{ const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.readAsDataURL(new Blob([it.data],{type:'image/gif'})); });
+}
+// 저장 이름: GIF 카드는 .gif
+const _dlName=window.__cutCardDownloadNameV482;
+if(typeof _dlName==='function') window.__cutCardDownloadNameV482=function(card){ const n=_dlName.apply(this,arguments); return card&&card.dataset&&card.dataset.cutExtV1156==='gif'?String(n).replace(/\.png$/i,'.gif'):n; };
+// 압축 저장: GIF 데이터는 .gif 이름으로
+if(window.JSZip&&JSZip.prototype&&!JSZip.prototype.__dpcGifNameV1156){
+  const _zf=JSZip.prototype.file;
+  JSZip.prototype.file=function(name,data,opts){ if(typeof name==='string'&&typeof data==='string'&&opts&&opts.base64&&/^R0lGOD/.test(data)) arguments[0]=name.replace(/\.png$/i,'.gif'); return _zf.apply(this,arguments); };
+  JSZip.prototype.__dpcGifNameV1156=true;
+}
+function commitResults(){
+  if(typeof window.__cutCommitResultOrderV1150==='function') window.__cutCommitResultOrderV1150();
+  else if(typeof renumber==='function') renumber();
+  window.__updateMainPanels();
+}
+async function appendCards(picks){
+  for(const it of picks){
+    const card=document.createElement('div');
+    card.className='card'; card.style.position='relative';
+    card.dataset.downloadBaseV482=it.doc.base;
+    card.dataset.officeImportV1156='1';
+    card.innerHTML=`
+    <div class="num">${String(results.querySelectorAll('.card').length+1).padStart(3,'0')}</div>
+
+    <img alt="추출된 컷">
+
+    <button class="del" style="position:absolute;top:4px;right:4px;padding:2px 6px;z-index:5;">✕</button>
+    `;
+    card.querySelector('.del').onclick=()=>{ card.remove(); commitResults(); };
+    const img=card.querySelector('img');
+    if(it.ext==='gif'){ img.src=await gifDataURL(it); card.dataset.cutExtV1156='gif'; }
+    else img.src=cutDataURL(it);
+    try{ if(typeof __bindCutImageDownloadV482==='function') __bindCutImageDownloadV482(card,img); }catch(e){}
+    results.appendChild(card);
+    await new Promise(r=>setTimeout(r,0));
+  }
+  commitResults();
+}
+const _run=run.onclick;
+const waitIdle=()=>new Promise(res=>{const t0=Date.now();(function chk(){ if(run.dataset.busy!=='1'||Date.now()-t0>900000) return res(); setTimeout(chk,200); })();});
+run.onclick=async function(ev){
+  if(!docs.length) return _run.apply(this,arguments);
+  if(run.dataset.busy==='1') return;
+  const picks=selOrder.length?selOrder.slice():docs.flatMap(d=>d.items);
+  const hasImages=!!(window.sourceFiles&&sourceFiles.length);
+  if(!picks.length&&!hasImages){ alert('문서에서 추출할 이미지가 없습니다.'); return; }
+  if(hasImages){
+    await _run.apply(this,arguments);
+    await new Promise(r=>setTimeout(r,50)); await waitIdle();
+    if(picks.length) await appendCards(picks);
+    return;
+  }
+  run.dataset.busy='1';
+  document.body.classList.add('__cut_processing'); document.body.classList.remove('__cut_completed');
+  try{ run.classList.remove('working'); void run.offsetWidth; run.classList.add('working'); }catch(e){}
+  try{
+    await new Promise(r=>setTimeout(r,30));
+    results.innerHTML=''; try{ extracted=[]; }catch(e){}
+    if(docs.length===1){ try{ baseName=docs[0].base; }catch(e){} }
+    await appendCards(picks);
+  }catch(err){ console.error('[CUT office run]',err); alert('추출 중 오류가 발생했습니다.'); }
+  finally{
+    run.dataset.busy='0'; run.classList.remove('working');
+    document.body.classList.remove('__cut_processing');
+    if(results.querySelector('.card')) requestAnimationFrame(()=>document.body.classList.add('__cut_completed'));
+  }
+};
+window.__CUT_OFFICE_IMPORT_V1156__={docs:()=>docs,selected:()=>selOrder.slice()};
+
+})();
+</script>
 </body>
 </html>
