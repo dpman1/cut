@@ -32251,7 +32251,9 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 #dpcOfficeView .dpc-of-doc{display:flex;flex-direction:column;align-items:center;gap:6px}
 #dpcOfficeView .dpo-ttl{color:#777;font-size:13px;margin-top:8px}
 #dpcOfficeView .dpc-of-fit{position:relative;flex:none;box-shadow:0 1px 4px rgba(0,0,0,.18);background:#fff}
-#dpcOfficeView .dpo-page,#dpcOfficeView .dpo-slide,#dpcOfficeView .dpo-sheet{position:relative;background:#fff;color:#000;flex:none;box-sizing:border-box}
+#dpcOfficeView .dpo-pdf{background:#fff;overflow:hidden}
+#dpcOfficeView .dpo-pdf-cv{position:absolute;left:0;top:0;width:100%;height:100%;display:block}
+#dpcOfficeView .dpo-page,#dpcOfficeView .dpo-slide,#dpcOfficeView .dpo-sheet,#dpcOfficeView .dpo-pdf{position:relative;background:#fff;color:#000;flex:none;box-sizing:border-box}
 #dpcOfficeView .dpo-page{font-family:"Malgun Gothic",sans-serif;font-size:13px;line-height:1.35}
 #dpcOfficeView .dpo-page p{margin:0;min-height:1em;white-space:pre-wrap}
 #dpcOfficeView .dpo-page table{border-collapse:collapse;margin:2px 0}
@@ -32275,12 +32277,18 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 </style>
 <script id="dpc-cut-office-import-v1156">
 /*
+ * V1157: 문서 미리보기의 '전체 선택' 제거(선택 없이 CUT = 전체), '선택 해제'는 모든 문서의 선택을 해제.
  * V1156 오피스 문서(pptx·docx·xlsx) 가져오기.
  * - 입력: 기존 파일 입력 경로(__cutOnlySupportedImages)에서 오피스 파일만 따로 받아 처리. 이미지 경로는 그대로.
  * - 보기: 원본 미리보기 카드 안에 문서 화면을 그대로 그리고, 이미지를 클릭해 컷 선택(클릭 순서 번호).
  * - CUT: 선택 컷(없으면 전체)을 원본 해상도·문서상 크롭 그대로 결과 카드로 만든다.
  *   카드 형식은 엔진 카드와 동일하며 V1150 순서 계약(commit)으로 확정 → 저장·압축·SHEET 전송·순서 변경·삭제 공용.
- * - GIF(움짤) 컷은 원본 GIF 그대로 결과에 넣어 애니메이션 유지(문서상 크롭은 적용하지 않음), 저장·압축·SHEET 전송 이름은 .gif.
+ * - 문서에서 잘리지 않은 이미지와 GIF(움짤)는 원본 파일 그대로 결과에 넣는다(변환 없음, GIF 애니메이션 유지, GIF는 크롭 미적용).
+ *   잘린 이미지만 원본 해상도로 잘라 PNG로 만든다(병렬 처리). 저장·압축·SHEET 전송 이름은 실제 형식 확장자(.jpg/.gif 등).
+ * - PDF: pdf.js(CDN, 처음 PDF를 열 때만 불러옴)로 페이지를 그대로 그리고, 페이지 안의 이미지마다 클릭 영역을 둔다.
+ *   추출은 PDF에 들어 있는 이미지 픽셀 그대로(PDF 해상도). 이미지가 없는 페이지는 페이지 전체를 하나의 항목으로(직접 선택할 때만).
+ * - PDF 통이미지 페이지(이미지 1장이 페이지 90% 이상): 자동으로 원본 목록에 이미지로 넣어 기존 엔진으로 분할.
+ *   모든 페이지가 그런 경우(스캔본)는 문서 타일 없이 이미지를 넣은 것과 동일하게 동작.
  * - 검출 엔진(OpenCV/GRID)은 건드리지 않는다. 이미지 원본이 함께 있으면 엔진 실행 후 문서 컷을 뒤에 붙인다.
  */
 
@@ -33036,8 +33044,116 @@ async function renderXlsx(){
   }
 }
 
+// ================= PDF (pdf.js) =================
+const PDFJS_URL='https://cdn.jsdelivr.net/npm/pdfjs-dist@6.2.108/legacy/build/pdf.min.mjs';
+const PDFJS_WORKER='https://cdn.jsdelivr.net/npm/pdfjs-dist@6.2.108/legacy/build/pdf.worker.min.mjs';
+let pdfjsP=null;
+function loadPdfjs(){
+  return pdfjsP||(pdfjsP=import(PDFJS_URL).then(m=>{ m.GlobalWorkerOptions.workerSrc=PDFJS_WORKER; return m; }).catch(e=>{ pdfjsP=null; throw new Error('PDF 엔진을 불러오지 못했습니다(인터넷 연결 확인)'); }));
+}
+const PT2PX=96/72;
+const mulM=(a,b)=>[a[0]*b[0]+a[2]*b[1],a[1]*b[0]+a[3]*b[1],a[0]*b[2]+a[2]*b[3],a[1]*b[2]+a[3]*b[3],a[0]*b[4]+a[2]*b[5]+a[4],a[1]*b[4]+a[3]*b[5]+a[5]];
+async function renderPdf(doc,buf){
+  const pdfjs=await loadPdfjs();
+  const pdf=await pdfjs.getDocument({data:new Uint8Array(buf),isEvalSupported:false}).promise;
+  doc.pdf=pdf; doc.pdfPages=[];
+  const O=pdfjs.OPS;
+  for(let n=1;n<=pdf.numPages;n++){
+    const page=await pdf.getPage(n);
+    const vp=page.getViewport({scale:PT2PX});
+    const t=document.createElement('div'); t.className='dpo-ttl'; t.textContent='페이지 '+n; VIEW.appendChild(t);
+    const host=document.createElement('div'); host.className='dpo-pdf';
+    host.style.width=vp.width+'px'; host.style.height=vp.height+'px';
+    const cv=document.createElement('canvas'); cv.className='dpo-pdf-cv'; host.appendChild(cv);
+    VIEW.appendChild(host);
+    const P={n,page,vp,host,cv,rendered:null};
+    doc.pdfPages.push(P);
+    // 이미지 위치: 연산 목록을 따라가며 변환 행렬 추적
+    const ol=await page.getOperatorList();
+    let ctm=[1,0,0,1,0,0]; const stack=[]; const boxes=[];
+    for(let i=0;i<ol.fnArray.length;i++){
+      const fn=ol.fnArray[i], a=ol.argsArray[i];
+      if(fn===O.save) stack.push(ctm);
+      else if(fn===O.restore) ctm=stack.pop()||[1,0,0,1,0,0];
+      else if(fn===O.transform) ctm=mulM(ctm,a);
+      else if(fn===O.paintFormXObjectBegin){ stack.push(ctm); if(a&&a[0]) ctm=mulM(ctm,a[0]); }
+      else if(fn===O.paintFormXObjectEnd) ctm=stack.pop()||[1,0,0,1,0,0];
+      else if(fn===O.paintImageXObject||fn===O.paintInlineImageXObject){
+        const id=fn===O.paintImageXObject?a[0]:null;
+        const pts=[[0,0],[1,0],[0,1],[1,1]].map(([x,y])=>vp.convertToViewportPoint(ctm[0]*x+ctm[2]*y+ctm[4],ctm[1]*x+ctm[3]*y+ctm[5]));
+        const xs=pts.map(p=>p[0]), ys=pts.map(p=>p[1]);
+        const box={x:Math.min(...xs),y:Math.min(...ys)}; box.w=Math.max(...xs)-box.x; box.h=Math.max(...ys)-box.y;
+        // 화면 밖으로 나간 부분은 페이지 안으로 자름(보이는 범위만)
+        const cx=Math.max(0,box.x), cy=Math.max(0,box.y), cw=Math.min(vp.width,box.x+box.w)-cx, ch=Math.min(vp.height,box.y+box.h)-cy;
+        if(id&&cw>=12&&ch>=12) boxes.push({id,box,vis:{x:cx,y:cy,w:cw,h:ch},flipX:ctm[0]<0,flipY:ctm[3]<0});
+      }
+    }
+    // 이미지 1장이 페이지의 90% 이상을 덮으면 통이미지 페이지(스캔본 등)
+    P.full=boxes.length===1&&(boxes[0].vis.w*boxes[0].vis.h)>=0.9*vp.width*vp.height;
+    if(!boxes.length){ // 이미지가 없는 페이지(벡터·글자 콘티): 페이지 전체를 하나의 컷으로
+      addPdfItem(doc,P,{id:null,page:true,vis:{x:0,y:0,w:vp.width,h:vp.height}});
+    } else boxes.forEach(b=>addPdfItem(doc,P,b));
+  }
+  // 화면에 가까워질 때만 페이지를 그림(메모리 절약)
+  doc.pdfIO=new IntersectionObserver(es=>es.forEach(e=>{ if(e.isIntersecting){ const P=doc.pdfPages.find(p=>p.host===e.target); if(P) drawPdfPage(P); } }),{rootMargin:'600px 0px'});
+  doc.pdfPages.forEach(P=>doc.pdfIO.observe(P.host));
+}
+function addPdfItem(doc,P,b){
+  const el=document.createElement('div'); el.className='dpo-cut dpo-pdf-cut';
+  Object.assign(el.style,{position:'absolute',left:b.vis.x+'px',top:b.vis.y+'px',width:b.vis.w+'px',height:b.vis.h+'px',zIndex:2,pointerEvents:'auto'});
+  const it={el,sel:false,idx:doc.items.length,doc,ext:'png',pdf:{P,...b}};
+  it.getCanvas=()=>pdfItemCanvas(it);
+  el.onclick=e=>{e.stopPropagation();e.preventDefault();onCutClick(it,e);};
+  P.host.appendChild(el); doc.items.push(it);
+}
+function drawPdfPage(P){
+  if(P.rendered) return P.rendered;
+  const fit=(parseFloat((P.host.style.transform.match(/scale\(([\d.]+)/)||[,1])[1])||1);
+  const r=Math.max(0.6,Math.min(2.5,fit*(window.devicePixelRatio||1)));
+  const vp=P.page.getViewport({scale:PT2PX*r});
+  P.cv.width=Math.round(vp.width); P.cv.height=Math.round(vp.height);
+  P.rendered=P.page.render({canvasContext:P.cv.getContext('2d'),viewport:vp}).promise.catch(e=>{console.error('[CUT pdf render]',e);});
+  return P.rendered;
+}
+const getObj=(store,id)=>new Promise(res=>{ try{ store.get(id,res); }catch(e){ res(null); } });
+// 컷 하나를 원본 해상도 캔버스로: 이미지 컷은 PDF 안의 이미지 픽셀 그대로, 페이지 컷은 고해상도로 그림
+async function pdfItemCanvas(it){
+  const {P,id,box,vis,page:isPage,flipX,flipY}=it.pdf;
+  if(isPage){
+    const sc=Math.min(4,4000/Math.max(P.vp.width,P.vp.height))*PT2PX;
+    const vp=P.page.getViewport({scale:sc});
+    const cv=document.createElement('canvas'); cv.width=Math.round(vp.width); cv.height=Math.round(vp.height);
+    const ctx=cv.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,cv.width,cv.height);
+    await P.page.render({canvasContext:ctx,viewport:vp}).promise;
+    return cv;
+  }
+  await drawPdfPage(P);
+  const obj=await getObj(String(id).startsWith('g_')?P.page.commonObjs:P.page.objs,id);
+  if(!obj) throw new Error('이미지 데이터를 찾지 못함');
+  const w=obj.width,h=obj.height;
+  const src=document.createElement('canvas'); src.width=w; src.height=h;
+  const sx=src.getContext('2d');
+  if(obj.bitmap) sx.drawImage(obj.bitmap,0,0);
+  else if(obj.data){
+    const d=obj.data, out=new Uint8ClampedArray(w*h*4);
+    if(obj.kind===3) out.set(d.subarray?d.subarray(0,out.length):d);
+    else if(obj.kind===2){ for(let i=0,j=0;j<out.length;i+=3,j+=4){out[j]=d[i];out[j+1]=d[i+1];out[j+2]=d[i+2];out[j+3]=255;} }
+    else { const rb=(w+7)>>3; for(let y=0;y<h;y++)for(let x=0;x<w;x++){const v=(d[y*rb+(x>>3)]>>(7-(x&7)))&1?255:0,j=(y*w+x)*4;out[j]=out[j+1]=out[j+2]=v;out[j+3]=255;} }
+    sx.putImageData(new ImageData(out,w,h),0,0);
+  } else throw new Error('지원하지 않는 이미지 형식');
+  // 페이지 밖으로 나간 부분은 보이는 범위만 남김(원본 픽셀 기준)
+  const kx=w/box.w, ky=h/box.h;
+  let cx=(vis.x-box.x)*kx, cy=(vis.y-box.y)*ky; const cw=Math.round(vis.w*kx), ch=Math.round(vis.h*ky);
+  if(flipX) cx=w-cx-cw; if(flipY) cy=h-cy-ch;
+  if(cx<=0.5&&cy<=0.5&&cw>=w-1&&ch>=h-1) return src;
+  const out=document.createElement('canvas'); out.width=Math.max(1,cw); out.height=Math.max(1,ch);
+  out.getContext('2d').drawImage(src,Math.round(cx),Math.round(cy),cw,ch,0,0,cw,ch);
+  src.width=src.height=0;
+  return out;
+}
+
 // ================= CUT 연동 (V1156) =================
-const OFFICE_RE=/\.(pptx|pptm|docx|docm|xlsx|xlsm)$/i;
+const OFFICE_RE=/\.(pptx|pptm|docx|docm|xlsx|xlsm|pdf)$/i;
 const BLUE='#1684f2';
 let VIEW=null, CUR=null, Z=null, media={};
 const docs=[]; let selOrder=[], activeDoc=null;
@@ -33063,8 +33179,7 @@ function ensureUI(){
   oinfo=document.createElement('span'); oinfo.className='dpc-of-info';
   const btns=document.createElement('div'); btns.className='dpc-of-btns';
   const mk=(t,fn)=>{const b=document.createElement('button');b.type='button';b.textContent=t;copyBtnLook(b);b.onclick=fn;btns.appendChild(b);return b;};
-  mk('전체 선택',()=>{ if(!activeDoc) return; activeDoc.items.forEach(it=>{if(!it.sel){it.sel=true;selOrder.push(it);}}); updateSel(); });
-  mk('선택 해제',()=>{ if(!activeDoc) return; activeDoc.items.forEach(it=>it.sel=false); selOrder=selOrder.filter(x=>x.sel); updateSel(); });
+  mk('선택 해제',()=>{ docs.forEach(d=>d.items.forEach(it=>it.sel=false)); selOrder=[]; updateSel(); });
   obar.appendChild(oinfo); obar.appendChild(btns);
   ohost=document.createElement('div'); ohost.className='dpc-of-host';
   oview.appendChild(obar); oview.appendChild(ohost);
@@ -33118,7 +33233,7 @@ const _clearBtn=clearBtn.onclick;
 clearBtn.onclick=function(ev){ if(ev) clearDocs(); return _clearBtn.apply(this,arguments); };
 
 // ---------- 입력: 오피스 파일 가로채기 ----------
-try{ file.setAttribute('accept',(file.getAttribute('accept')||'image/*')+',.pptx,.pptm,.docx,.docm,.xlsx,.xlsm'); }catch(e){}
+try{ file.setAttribute('accept',(file.getAttribute('accept')||'image/*')+',.pptx,.pptm,.docx,.docm,.xlsx,.xlsm,.pdf'); }catch(e){}
 const _filter=window.__cutOnlySupportedImages;
 window.__cutOnlySupportedImages=function(list,notify){
   const all=Array.from(list||[]);
@@ -33139,21 +33254,25 @@ async function importDocs(files){
     window.__updateMainPanels(); fixTitle();
     showDoc(doc);
     try{
-      Z=await readZip(await f.arrayBuffer()); media=doc.media; CUR=doc; VIEW=doc.view;
-      if(Z.has('ppt/presentation.xml')) await renderPptx();
+      const buf=await f.arrayBuffer(); media=doc.media; CUR=doc; VIEW=doc.view;
+      if(/\.pdf$/i.test(f.name)) await renderPdf(doc,buf);
+      else if((Z=await readZip(buf))&&Z.has('ppt/presentation.xml')) await renderPptx();
       else if(Z.has('word/document.xml')) await renderDocx();
       else if(Z.has('xl/workbook.xml')) await renderXlsx();
       else throw new Error('지원하지 않는 형식');
       wrapHosts(doc);
+      if(doc.pdfPages) await pdfFullPagesToSources(doc);
     }catch(err){ console.error('[CUT office import]',err); doc.view.textContent='문서를 읽지 못했습니다: '+(err&&err.message||err); }
     finally{ Z=null; CUR=null; VIEW=null; doc.loading=false; }
+    if(doc.dropped) continue;
     if(activeDoc===doc){ showDoc(doc); orderItems(doc); }
     if(!(window.sourceFiles&&sourceFiles.length)&&docs.length===1){ try{ baseName=doc.base; }catch(e){} }
     updateSel();
   }
 }
+function releaseDoc(d){ try{ d.pdfIO&&d.pdfIO.disconnect(); d.pdf&&d.pdf.destroy(); }catch(e){} }
 function removeDoc(doc){
-  const i=docs.indexOf(doc); if(i<0) return;
+  const i=docs.indexOf(doc); if(i<0) return; releaseDoc(doc);
   docs.splice(i,1);
   selOrder=selOrder.filter(x=>x.doc!==doc);
   Object.values(doc.media).forEach(m=>m&&URL.revokeObjectURL(m.url));
@@ -33167,7 +33286,7 @@ function removeDoc(doc){
   else { try{ __clearCutWorkspace(true); }catch(e){} }
   window.__updateMainPanels();
 }
-function clearDocs(){ [...docs].forEach(d=>{ Object.values(d.media).forEach(m=>m&&URL.revokeObjectURL(m.url)); d.view.remove(); if(d.tile) d.tile.parentNode.remove(); }); docs.length=0; selOrder=[]; activeDoc=null; hideDoc(); fixTitle(); }
+function clearDocs(){ [...docs].forEach(d=>{ releaseDoc(d); Object.values(d.media).forEach(m=>m&&URL.revokeObjectURL(m.url)); d.view.remove(); if(d.tile) d.tile.parentNode.remove(); }); docs.length=0; selOrder=[]; activeDoc=null; hideDoc(); fixTitle(); }
 function showDoc(doc){
   ensureUI(); activeDoc=doc;
   const pv=$id('preview'); pv.style.display='none';
@@ -33180,7 +33299,7 @@ function hideDoc(){ if(oview) oview.style.display='none'; docs.forEach(d=>d.tile
 
 // ---------- 화면 폭 맞춤 ----------
 function wrapHosts(doc){
-  doc.view.querySelectorAll('.dpo-slide,.dpo-page,.dpo-sheet').forEach(h=>{
+  doc.view.querySelectorAll('.dpo-slide,.dpo-page,.dpo-sheet,.dpo-pdf').forEach(h=>{
     if(h.parentNode.classList.contains('dpc-of-fit')) return;
     const w=document.createElement('div'); w.className='dpc-of-fit';
     h.parentNode.insertBefore(w,h); w.appendChild(h);
@@ -33212,7 +33331,7 @@ function updateSel(){
   selOrder=selOrder.filter(x=>x.sel&&docs.includes(x.doc));
   selOrder.forEach((it,k)=>{
     if(it.doc!==activeDoc) return;
-    const host=it.el.closest('.dpo-slide,.dpo-page,.dpo-sheet'); if(!host) return;
+    const host=it.el.closest('.dpo-slide,.dpo-page,.dpo-sheet,.dpo-pdf'); if(!host) return;
     let layer=host.querySelector(':scope>.dpc-of-sel'); if(!layer){layer=document.createElement('div');layer.className='dpc-of-sel';host.appendChild(layer);}
     const hr=host.getBoundingClientRect(), r=it.el.getBoundingClientRect(), z=host.offsetWidth/(hr.width||1);
     const bx=document.createElement('div'); bx.className='dpc-of-box'; bx.dataset.no=k+1;
@@ -33221,13 +33340,14 @@ function updateSel(){
   });
   if(activeDoc&&oinfo){
     if(activeDoc.loading){ oinfo.textContent=`${activeDoc.name} 읽는 중…`; return; }
-    const n=activeDoc.items.length, s=selOrder.length;
-    oinfo.textContent=`${activeDoc.name} · 이미지 ${n}개 · `+(s?`선택 ${s}컷`:`선택 없음 (CUT 실행 시 전체)`);
+    const n=activeDoc.items.filter(it=>!(it.pdf&&it.pdf.page)).length, s=selOrder.length;
+    const hasImg=!!(window.sourceFiles&&sourceFiles.length);
+    oinfo.textContent=`${activeDoc.name} · 이미지 ${n}개 · `+(s?`선택 ${s}컷`:(hasImg?'선택 없음':`선택 없음 (CUT 실행 시 전체)`));
   }
 }
 function orderItems(doc){
-  const hosts=[...doc.view.querySelectorAll('.dpo-slide,.dpo-page,.dpo-sheet')];
-  const info=doc.items.map(it=>{const r=it.el.getBoundingClientRect();return {it,h:hosts.indexOf(it.el.closest('.dpo-slide,.dpo-page,.dpo-sheet')),t:r.top,l:r.left,hh:r.height};});
+  const hosts=[...doc.view.querySelectorAll('.dpo-slide,.dpo-page,.dpo-sheet,.dpo-pdf')];
+  const info=doc.items.map(it=>{const r=it.el.getBoundingClientRect();return {it,h:hosts.indexOf(it.el.closest('.dpo-slide,.dpo-page,.dpo-sheet,.dpo-pdf')),t:r.top,l:r.left,hh:r.height};});
   info.sort((a,b)=>a.h-b.h||a.t-b.t);
   let row=0,rowTop=null,rowH=0,ph=-1;
   for(const x of info){ if(x.h!==ph||rowTop===null||x.t>rowTop+rowH*0.5){row++;rowTop=x.t;rowH=x.hh;ph=x.h;} else rowH=Math.min(rowH,x.hh); x.row=row; }
@@ -33235,26 +33355,66 @@ function orderItems(doc){
   doc.items=info.map(x=>x.it); doc.items.forEach((it,i)=>it.idx=i);
 }
 
+// ---------- PDF 통이미지 페이지(스캔본 등) → 원본 목록(기존 이미지 자르기와 동일) ----------
+async function pdfFullPagesToSources(doc){
+  const full=doc.pdfPages.filter(P=>P.full);
+  if(!full.length) return;
+  const files=[];
+  for(const P of full){
+    const it=doc.items.find(x=>x.pdf&&x.pdf.P===P);
+    const cv=await it.getCanvas();
+    const blob=await new Promise(r=>cv.toBlob(r,'image/png')); cv.width=cv.height=0;
+    files.push(new File([blob],`${doc.base}_p${String(P.n).padStart(3,'0')}.png`,{type:'image/png'}));
+    // 이 페이지는 원본으로 넘어가므로 문서 화면에서는 선택 대상에서 뺌
+    doc.items=doc.items.filter(x=>x!==it); it.el.remove();
+  }
+  doc.items.forEach((x,i)=>x.idx=i);
+  // 개별 이미지 페이지가 하나도 없으면(순수 스캔본) 문서 타일 없이 이미지와 똑같이
+  const rest=doc.items.filter(x=>!(x.pdf&&x.pdf.page));
+  if(!rest.length){ // 조용히 문서만 빼고(작업 영역은 건드리지 않음) 이미지로 넘김
+    doc.dropped=true; releaseDoc(doc);
+    const i=docs.indexOf(doc); if(i>=0) docs.splice(i,1);
+    doc.view.remove(); if(doc.tile) doc.tile.parentNode.remove();
+    if(activeDoc===doc) activeDoc=null;
+    if(docs.length) showDoc(docs[docs.length-1]); else hideDoc();
+    fixTitle();
+  }
+  const dt=new DataTransfer(); files.forEach(f=>dt.items.add(f));
+  file.files=dt.files; file.dispatchEvent(new Event('change',{bubbles:true}));
+}
+
 // ---------- CUT 실행: 선택 컷 → 결과 카드 ----------
-function cutDataURL(it){
+const EXT_MIME={png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',gif:'image/gif',webp:'image/webp',bmp:'image/bmp'};
+const isCropped=c=>!!c&&(Math.abs(c.l)>0.0005||Math.abs(c.t)>0.0005||Math.abs(c.r)>0.0005||Math.abs(c.b)>0.0005);
+const blobToDataURL=blob=>new Promise(res=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.readAsDataURL(blob);});
+const origCache=new Map();
+// 컷 하나의 결과 이미지: 잘리지 않았거나 GIF면 원본 파일 그대로(변환 없음), 잘린 경우만 원본 해상도로 잘라 PNG
+async function cutResult(it){
+  if(it.getCanvas){ const cv=await it.getCanvas(); const blob=await new Promise(r=>cv.toBlob(r,'image/png')); cv.width=cv.height=0; return {url:await blobToDataURL(blob),ext:'png'}; }
+  const ext=(it.ext==='jpeg'?'jpg':it.ext);
+  if(it.ext==='gif'||(!isCropped(it.crop)&&EXT_MIME[it.ext])){
+    const key=it.path||it.url;
+    if(!origCache.has(key)) origCache.set(key,blobToDataURL(new Blob([it.data],{type:EXT_MIME[it.ext]})));
+    return {url:await origCache.get(key),ext};
+  }
   const c=it.crop||{l:0,t:0,r:0,b:0}, nw=it.img.naturalWidth, nh=it.img.naturalHeight;
   const sx=Math.max(0,c.l*nw), sy=Math.max(0,c.t*nh);
   const sw=Math.max(1,Math.round(Math.min(nw,(1-c.r)*nw)-sx)), sh=Math.max(1,Math.round(Math.min(nh,(1-c.b)*nh)-sy));
   const cv=document.createElement('canvas'); cv.width=sw; cv.height=sh;
   cv.getContext('2d').drawImage(it.img,sx,sy,sw,sh,0,0,sw,sh);
-  const url=cv.toDataURL('image/png'); cv.width=cv.height=0; return url;
+  const blob=await new Promise(r=>cv.toBlob(r,'image/png'));
+  cv.width=cv.height=0;
+  return {url:await blobToDataURL(blob),ext:'png'};
 }
-function gifDataURL(it){ // 움직이는 GIF는 원본 그대로(애니메이션 유지)
-  return new Promise(res=>{ const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.readAsDataURL(new Blob([it.data],{type:'image/gif'})); });
-}
-// 저장 이름: GIF 카드는 .gif
+// 저장 이름: 원본 형식 그대로 넣은 카드는 그 확장자(.jpg/.gif 등)
 const _dlName=window.__cutCardDownloadNameV482;
-if(typeof _dlName==='function') window.__cutCardDownloadNameV482=function(card){ const n=_dlName.apply(this,arguments); return card&&card.dataset&&card.dataset.cutExtV1156==='gif'?String(n).replace(/\.png$/i,'.gif'):n; };
-// 압축 저장: GIF 데이터는 .gif 이름으로
-if(window.JSZip&&JSZip.prototype&&!JSZip.prototype.__dpcGifNameV1156){
+if(typeof _dlName==='function') window.__cutCardDownloadNameV482=function(card){ const n=_dlName.apply(this,arguments); const e=card&&card.dataset&&card.dataset.cutExtV1156; return e&&e!=='png'?String(n).replace(/\.png$/i,'.'+e):n; };
+// 압축 저장: 데이터 형식에 맞는 확장자로
+if(window.JSZip&&JSZip.prototype&&!JSZip.prototype.__dpcExtNameV1156){
   const _zf=JSZip.prototype.file;
-  JSZip.prototype.file=function(name,data,opts){ if(typeof name==='string'&&typeof data==='string'&&opts&&opts.base64&&/^R0lGOD/.test(data)) arguments[0]=name.replace(/\.png$/i,'.gif'); return _zf.apply(this,arguments); };
-  JSZip.prototype.__dpcGifNameV1156=true;
+  const MAGIC=[[/^R0lGOD/,'gif'],[/^\/9j\//,'jpg'],[/^UklGR/,'webp'],[/^Qk/,'bmp']];
+  JSZip.prototype.file=function(name,data,opts){ if(typeof name==='string'&&typeof data==='string'&&opts&&opts.base64&&/\.png$/i.test(name)){ const m=MAGIC.find(x=>x[0].test(data)); if(m) arguments[0]=name.replace(/\.png$/i,'.'+m[1]); } return _zf.apply(this,arguments); };
+  JSZip.prototype.__dpcExtNameV1156=true;
 }
 function commitResults(){
   if(typeof window.__cutCommitResultOrderV1150==='function') window.__cutCommitResultOrderV1150();
@@ -33262,11 +33422,19 @@ function commitResults(){
   window.__updateMainPanels();
 }
 async function appendCards(picks){
-  for(const it of picks){
+  const jobs=new Array(picks.length); let next=0;
+  const worker=async()=>{ while(next<picks.length){ const i=next++; jobs[i]=cutResult(picks[i]); await jobs[i].catch(()=>{}); } };
+  const pool=[]; for(let k=0;k<Math.min(8,Math.max(2,(navigator.hardwareConcurrency||4)));k++) pool.push(worker());
+  const rt=$id('resultTitle');
+  for(let i=0;i<picks.length;i++){
+    while(!jobs[i]) await new Promise(r=>setTimeout(r,10));
+    let r; try{ r=await jobs[i]; }catch(e){ console.error('[CUT office cut]',e); continue; }
+    const it=picks[i];
     const card=document.createElement('div');
     card.className='card'; card.style.position='relative';
     card.dataset.downloadBaseV482=it.doc.base;
     card.dataset.officeImportV1156='1';
+    card.dataset.cutExtV1156=r.ext;
     card.innerHTML=`
     <div class="num">${String(results.querySelectorAll('.card').length+1).padStart(3,'0')}</div>
 
@@ -33276,12 +33444,14 @@ async function appendCards(picks){
     `;
     card.querySelector('.del').onclick=()=>{ card.remove(); commitResults(); };
     const img=card.querySelector('img');
-    if(it.ext==='gif'){ img.src=await gifDataURL(it); card.dataset.cutExtV1156='gif'; }
-    else img.src=cutDataURL(it);
+    img.src=r.url;
     try{ if(typeof __bindCutImageDownloadV482==='function') __bindCutImageDownloadV482(card,img); }catch(e){}
     results.appendChild(card);
-    await new Promise(r=>setTimeout(r,0));
+    if(rt) rt.textContent='CUT ('+results.querySelectorAll('.card').length+'컷)';
+    if(i===0) window.__updateMainPanels();
+    if(i%8===7) await new Promise(r=>setTimeout(r,0));
   }
+  await Promise.all(pool);
   commitResults();
 }
 const _run=run.onclick;
@@ -33289,8 +33459,8 @@ const waitIdle=()=>new Promise(res=>{const t0=Date.now();(function chk(){ if(run
 run.onclick=async function(ev){
   if(!docs.length) return _run.apply(this,arguments);
   if(run.dataset.busy==='1') return;
-  const picks=selOrder.length?selOrder.slice():docs.flatMap(d=>d.items);
   const hasImages=!!(window.sourceFiles&&sourceFiles.length);
+  const picks=selOrder.length?selOrder.slice():(hasImages?[]:docs.flatMap(d=>d.items.filter(it=>!(it.pdf&&it.pdf.page))));
   if(!picks.length&&!hasImages){ alert('문서에서 추출할 이미지가 없습니다.'); return; }
   if(hasImages){
     await _run.apply(this,arguments);
