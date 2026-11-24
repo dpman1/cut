@@ -1764,7 +1764,7 @@ body.dpc-tools-open .dpc-tools-panel{display:block}
 <canvas id="work" style="display:none"></canvas>
 
 <script>
-window.__FRAME_CUT_BUILD__='V1153_EMPTY_CELL_OWNER_PRECEDENCE';
+window.__FRAME_CUT_BUILD__='V1158_REPEATED_FRAME_RASTER_CLUSTER';
 let sourceImage = null;
 let sourceImages = [];
 let sourceFiles = [];
@@ -23636,16 +23636,17 @@ const __opencvRepeatedCommonFrameV947=(()=>{
   const mode=a=>{const m=new Map();a.filter(Number.isFinite).map(Math.round).forEach(v=>m.set(v,(m.get(v)||0)+1));return [...m].sort((x,y)=>y[1]-x[1]||x[0]-y[0])[0]||null;};
   const names=['L','R','T','B'],outerWidths=raw.map(q=>Math.round(+q.outer.w)),
     outerHeights=raw.map(q=>Math.round(+q.outer.h)),mw=mode(outerWidths),mh=mode(outerHeights);
-  const hasBackgroundSlots=physicalIndices.length!==ordered.length;
-  const outerSizeOwned=!!(mw&&mh&&(
-    (mw[1]===physicalIndices.length&&mh[1]===physicalIndices.length)||
-    (hasBackgroundSlots&&mw[1]>physicalIndices.length*.50&&
-      mh[1]>physicalIndices.length*.50&&
-      Math.max(...outerWidths)-Math.min(...outerWidths)<=1&&
-      Math.max(...outerHeights)-Math.min(...outerHeights)<=1)
-  ));
+  const unanimousOuter=!!(mw&&mh&&
+    mw[1]===physicalIndices.length&&mh[1]===physicalIndices.length);
+  const spreadW=Math.max(...outerWidths)-Math.min(...outerWidths);
+  const spreadH=Math.max(...outerHeights)-Math.min(...outerHeights);
+  // Measured endpoints may include different antialiased shoulders. Accept a
+  // tight cluster at source scale and retain each cut's measured outer.
+  const rasterTolerance=mw&&mh?Math.max(2,Math.ceil(Math.min(mw[0],mh[0])*.009)):0;
+  const clusteredOuter=!!(mw&&mh&&spreadW<=rasterTolerance&&spreadH<=rasterTolerance);
+  const outerSizeOwned=unanimousOuter||clusteredOuter;
   if(!outerSizeOwned)
-    return {...out,reason:'source-outer-size-not-unanimous-or-one-raster-clustered',
+    return {...out,reason:'source-outer-size-outside-raster-cluster',
       outerVote:{w:mw,h:mh},outerSpread:{
         w:Math.max(...outerWidths)-Math.min(...outerWidths),
         h:Math.max(...outerHeights)-Math.min(...outerHeights)}};
@@ -23656,10 +23657,13 @@ const __opencvRepeatedCommonFrameV947=(()=>{
     thickness[s]=v[0];support[s]=v[1];
   }
   const tv=Object.values(thickness),minTh=Math.min(...tv),maxTh=Math.max(...tv),minOuter=Math.min(mw[0],mh[0]);
-  if(minTh<1||maxTh>Math.max(12,Math.round(minOuter*.035))||maxTh-minTh>1)
+  const thicknessTolerance=Math.max(1,Math.round(minTh*.20));
+  if(minTh<1||maxTh>Math.max(12,Math.round(minOuter*.035))||maxTh-minTh>thicknessTolerance)
     return {...out,reason:'not-one-common-thin-frame',thickness,support};
-  const cleanFour=raw.filter(q=>names.every(s=>q.sides[s]&&Math.abs(Math.round(+q.sides[s].thickness)-thickness[s])<=1)).length;
-  const supportedSides=raw.reduce((n,q)=>n+names.filter(s=>q.sides[s]&&Math.abs(Math.round(+q.sides[s].thickness)-thickness[s])<=1).length,0);
+  const matchesThickness=(q,s)=>q.sides[s]&&
+    Math.abs(Math.round(+q.sides[s].thickness)-thickness[s])<=thicknessTolerance;
+  const cleanFour=raw.filter(q=>names.every(s=>matchesThickness(q,s))).length;
+  const supportedSides=raw.reduce((n,q)=>n+names.filter(s=>matchesThickness(q,s)).length,0);
   const sideRatio=supportedSides/Math.max(1,physicalIndices.length*4);
   if(cleanFour<Math.max(2,Math.ceil(physicalIndices.length*.20))||sideRatio<.35)
     return {...out,reason:'common-frame-pixel-support-insufficient',cleanFour,sideRatio,thickness,support};
@@ -23667,14 +23671,15 @@ const __opencvRepeatedCommonFrameV947=(()=>{
   if(target.w<20||target.h<20)return {...out,reason:'reconstructed-inner-too-small',target};
   const candidates=raw.map((q,i)=>{
     const orderedIndex=physicalIndices[i];
-    const o=q.outer,outer={x:Math.round(+o.x),y:Math.round(+o.y),w:mw[0],h:mh[0]};
-    return {index:orderedIndex+1,orderedIndex,outer,inner:{x:outer.x+thickness.L,y:outer.y+thickness.T,w:target.w,h:target.h}};
+    const o=q.outer,outer={x:Math.round(+o.x),y:Math.round(+o.y),w:Math.round(+o.w),h:Math.round(+o.h)};
+    return {index:orderedIndex+1,orderedIndex,outer,inner:{x:outer.x+thickness.L,y:outer.y+thickness.T,
+      w:outer.w-thickness.L-thickness.R,h:outer.h-thickness.T-thickness.B}};
   });
-  if(candidates.some(c=>c.inner.x<0||c.inner.y<0||c.inner.x+c.inner.w>sourceImage.width||c.inner.y+c.inner.h>sourceImage.height))
+  if(candidates.some(c=>c.inner.w<20||c.inner.h<20||c.inner.x<0||c.inner.y<0||c.inner.x+c.inner.w>sourceImage.width||c.inner.y+c.inner.h>sourceImage.height))
     return {...out,reason:'reconstructed-inner-out-of-source',target};
   candidates.forEach(c=>{
     const i=c.orderedIndex,q=__frameContractsV554[i],r=ordered[i];
-    q.applied=true;q.reason='opencv-repeated-common-source-frame-canonical-v947';
+    q.applied=true;q.noFrameCrop=false;q.reason='opencv-repeated-common-source-frame-canonical-v947';
     q.outer={...c.outer};q.inner={...c.inner};
     q.sides={
       L:{outer:c.outer.x,inner:c.inner.x,thickness:thickness.L},
@@ -23689,7 +23694,7 @@ const __opencvRepeatedCommonFrameV947=(()=>{
     __refinePhysicalFrameEndpointV1128(q,i+1);
     r.__opencvRepeatedCommonFrameV947=true;
   });
-  return {...out,applied:true,reason:'unanimous-occupied-outer-plus-repeated-thin-frame',physicalCount:physicalIndices.length,backgroundCount:ordered.length-physicalIndices.length,outer:{w:mw[0],h:mh[0]},thickness,support,cleanFour,sideRatio,target,candidates};
+  return {...out,applied:true,reason:unanimousOuter?'unanimous-occupied-outer-plus-repeated-thin-frame':'clustered-occupied-outer-plus-repeated-thin-frame',physicalCount:physicalIndices.length,backgroundCount:ordered.length-physicalIndices.length,outer:{w:mw[0],h:mh[0]},thickness,support,cleanFour,sideRatio,target,candidates};
 })();
 window.__OPENCV_REPEATED_COMMON_FRAME_V947__=__opencvRepeatedCommonFrameV947;
 
@@ -28351,9 +28356,9 @@ function __v463UnifiedResidualFrameRectRefine(){
     window.__SOURCE_LATTICE_FINAL_OWNERSHIP_V818__={applied:true,reason:'v819-common-source-frame-locked-v820',count:ordered.length,sizes:__sizesV818,padding:false,resize:false};
     return {applied:false,reason:'v819-common-source-frame-locked-v820',changed:0,groups:[],owner:'V819-common-source-frame',sizes:__sizesV818,sizeLocked:true,padding:false,resize:false};
   }
-  const __opencvRepeatedCommonFrameOwnedV947=ordered.length>1&&ordered.every(r=>
-    r&&r.__opencvRepeatedCommonFrameV947===true
-  );
+  // V947 excludes background slots before matching the measured frames.
+  // An empty slot cannot invalidate the measured crops or normalize away art.
+  const __opencvRepeatedCommonFrameOwnedV947=__opencvRepeatedCommonFrameV947.applied;
   if(__opencvRepeatedCommonFrameOwnedV947){
     const __sizesV947=[...new Set((__v325CutPostTrace||[]).filter(t=>t&&t.finalRect).map(t=>t.finalRect.w+'x'+t.finalRect.h))];
     window.__SOURCE_LATTICE_FINAL_OWNERSHIP_V818__={applied:true,reason:'v947-opencv-repeated-common-source-frame-locked',count:ordered.length,sizes:__sizesV947,padding:false,resize:false};
