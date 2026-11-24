@@ -1764,7 +1764,7 @@ body.dpc-tools-open .dpc-tools-panel{display:block}
 <canvas id="work" style="display:none"></canvas>
 
 <script>
-window.__FRAME_CUT_BUILD__='V1158_REPEATED_FRAME_RASTER_CLUSTER';
+window.__FRAME_CUT_BUILD__='V1160_VERIFY_FRAME_BEFORE_PNG';
 let sourceImage = null;
 let sourceImages = [];
 let sourceFiles = [];
@@ -22183,7 +22183,7 @@ if(__v907IndicesV1080.length){
 // content. This is a per-cut boundary measurement; population size consensus,
 // normalization, padding and resize never participate.
 const __physicalEndpointRefineV1127=[];
-const __refinePhysicalFrameEndpointV1128=(q,index,record=true)=>{
+const __refinePhysicalFrameEndpointV1128=(q,index,record=true,allowShoulder=!!q?.opencvRepeatedCommonFrameV947)=>{
   if(!(q&&q.applied&&q.outer&&q.inner&&q.sides&&
     ['L','R','T','B'].every(s=>q.sides[s]&&
       Number.isFinite(q.sides[s].outer)&&Number.isFinite(q.sides[s].inner))))return false;
@@ -22211,11 +22211,22 @@ const __refinePhysicalFrameEndpointV1128=(q,index,record=true)=>{
   };
   const endpoint=side=>{
     const z=q.sides[side],sign=(side==='L'||side==='T')?1:-1;
-    const start=Math.round(z.outer),limit=Math.max(2,Math.min(64,
+    const maxSearch=Math.max(2,Math.min(64,
       Math.round((side==='L'||side==='R'?q.outer.w:q.outer.h)*.10)));
-    const outerStat=line(side,start);
-    if(!(outerStat.blackRatio>=.82&&outerStat.darkRatio>=.90))
+    const hasSolidCore=st=>st.blackRatio>=.82&&st.darkRatio>=.90;
+    const outer=Math.round(z.outer);
+    let start=outer,outerStat=line(side,start);
+    // A proven repeated frame may start with a faint exterior JPEG shoulder.
+    // Find its black core locally and keep the scan inside its measured band.
+    for(let shift=1;allowShoulder&&shift<=2&&!hasSolidCore(outerStat);shift++){
+      start=outer+sign*shift;
+      outerStat=line(side,start);
+    }
+    if(!hasSolidCore(outerStat))
       return {applied:false,reason:'outer-stroke-not-near-solid',value:Math.round(z.inner),outerStat};
+    const limit=allowShoulder
+      ?Math.min(maxSearch,Math.abs(Math.round(z.inner)-start))
+      :maxSearch;
     let lastFrame=start;
     for(let d=1;d<=limit;d++){
       const p=start+sign*d,st=line(side,p);
@@ -22246,7 +22257,7 @@ const __refinePhysicalFrameEndpointV1128=(q,index,record=true)=>{
   q.inner={x:L,y:T,w:R-L+1,h:B-T+1};
   for(const s of ['L','R','T','B']){
     q.sides[s].inner=sides[s].value;
-    q.sides[s].thickness=Math.abs(q.sides[s].value-q.sides[s].outer);
+    q.sides[s].thickness=Math.abs(sides[s].value-q.sides[s].outer);
   }
   q.physicalEndpointOwnerV1127=true;
   q.physicalEndpointOwnerV1128=true;
@@ -23657,7 +23668,9 @@ const __opencvRepeatedCommonFrameV947=(()=>{
     thickness[s]=v[0];support[s]=v[1];
   }
   const tv=Object.values(thickness),minTh=Math.min(...tv),maxTh=Math.max(...tv),minOuter=Math.min(mw[0],mh[0]);
-  const thicknessTolerance=Math.max(1,Math.round(minTh*.20));
+  // Use the same opposite-side tolerance as the original-pixel V1080
+  // frame check. JPEG shoulders can move the endpoints on each side.
+  const thicknessTolerance=Math.max(2,Math.round(minTh*.35));
   if(minTh<1||maxTh>Math.max(12,Math.round(minOuter*.035))||maxTh-minTh>thicknessTolerance)
     return {...out,reason:'not-one-common-thin-frame',thickness,support};
   const matchesThickness=(q,s)=>q.sides[s]&&
@@ -23672,8 +23685,16 @@ const __opencvRepeatedCommonFrameV947=(()=>{
   const candidates=raw.map((q,i)=>{
     const orderedIndex=physicalIndices[i];
     const o=q.outer,outer={x:Math.round(+o.x),y:Math.round(+o.y),w:Math.round(+o.w),h:Math.round(+o.h)};
-    return {index:orderedIndex+1,orderedIndex,outer,inner:{x:outer.x+thickness.L,y:outer.y+thickness.T,
-      w:outer.w-thickness.L-thickness.R,h:outer.h-thickness.T-thickness.B}};
+    // A cut's own measured endpoints win within the proven thin-frame
+    // family. Keep the shared vote only for sides that exceed that range.
+    const insets=Object.fromEntries(names.map(side=>{
+      const measured=Math.round(Number(q.sides[side]?.thickness));
+      const supported=measured>=1&&matchesThickness(q,side);
+      return [side,supported?measured:thickness[side]];
+    }));
+    return {index:orderedIndex+1,orderedIndex,outer,insets,inner:{
+      x:outer.x+insets.L,y:outer.y+insets.T,
+      w:outer.w-insets.L-insets.R,h:outer.h-insets.T-insets.B}};
   });
   if(candidates.some(c=>c.inner.w<20||c.inner.h<20||c.inner.x<0||c.inner.y<0||c.inner.x+c.inner.w>sourceImage.width||c.inner.y+c.inner.h>sourceImage.height))
     return {...out,reason:'reconstructed-inner-out-of-source',target};
@@ -23682,10 +23703,10 @@ const __opencvRepeatedCommonFrameV947=(()=>{
     q.applied=true;q.noFrameCrop=false;q.reason='opencv-repeated-common-source-frame-canonical-v947';
     q.outer={...c.outer};q.inner={...c.inner};
     q.sides={
-      L:{outer:c.outer.x,inner:c.inner.x,thickness:thickness.L},
-      R:{outer:c.outer.x+c.outer.w-1,inner:c.inner.x+c.inner.w-1,thickness:thickness.R},
-      T:{outer:c.outer.y,inner:c.inner.y,thickness:thickness.T},
-      B:{outer:c.outer.y+c.outer.h-1,inner:c.inner.y+c.inner.h-1,thickness:thickness.B}
+      L:{outer:c.outer.x,inner:c.inner.x,thickness:c.insets.L},
+      R:{outer:c.outer.x+c.outer.w-1,inner:c.inner.x+c.inner.w-1,thickness:c.insets.R},
+      T:{outer:c.outer.y,inner:c.inner.y,thickness:c.insets.T},
+      B:{outer:c.outer.y+c.outer.h-1,inner:c.inner.y+c.inner.h-1,thickness:c.insets.B}
     };
     q.opencvRepeatedCommonFrameV947=true;q.padding=false;q.resize=false;
     // V1128: V947 may prove that the sheet shares one outer frame model, but
@@ -29523,6 +29544,104 @@ try{
   window.__STRUCTURAL_COORD_SIZE_V667__=__v667StructuralCoordinateSizeContract();
   console.log('[STRUCTURAL_COORD_SIZE_V667]',window.__STRUCTURAL_COORD_SIZE_V667__);
 }catch(e){window.__STRUCTURAL_COORD_SIZE_V667__={applied:false,reason:'exception',error:String(e&&e.message||e),changed:0,groups:[],padding:false,resize:false};}
+
+// Final source-coordinate check for a repeated black frame separated by
+// white gutters. Even when an earlier population rule declines the frame,
+// verified original pixels can still exclude it before the PNG is encoded.
+if(__requestedCropModeV752==='tight'&&cropMode==='tight'){
+  const stages=__sourceOutputRenderPlan.snapshot().rows;
+  const cards=[...document.querySelectorAll('#results .card')].slice(__sourceResultStartV469);
+  const sides=['L','R','T','B'];
+  const measured=[],unresolved=[];
+  for(const trace of __v325CutPostTrace){
+    const current=stages[trace.idx]?.finalRect;
+    const outer=trace.detect;
+    if(!current||!outer||Math.min(outer.w,outer.h)<80)continue;
+    const gutter=Math.max(3,Math.round(Math.min(outer.w,outer.h)*.008));
+    if(outer.x<gutter||outer.y<gutter||outer.x+outer.w+gutter>sourceImage.width||
+      outer.y+outer.h+gutter>sourceImage.height)continue;
+    const sampler=__createSourceGraySamplerV711(outer,gutter,gutter);
+    if(!sampler)continue;
+    const starts={L:outer.x,R:outer.x+outer.w-1,T:outer.y,B:outer.y+outer.h-1};
+    const exteriorIsWhite=sides.every(side=>{
+      const horizontal=side==='T'||side==='B';
+      const sign=side==='L'||side==='T'?1:-1;
+      const fixed=starts[side]-sign*gutter;
+      const length=horizontal?outer.w:outer.h;
+      const first=horizontal?outer.x:outer.y;
+      let bright=0;
+      for(let i=0;i<24;i++){
+        const along=first+length*(.10+.80*i/23);
+        bright+=(horizontal?sampler.gray(along,fixed):sampler.gray(fixed,along))>=235;
+      }
+      return bright>=22;
+    });
+    if(!exteriorIsWhite)continue;
+    const depth=Math.max(4,Math.min(24,Math.round(Math.min(outer.w,outer.h)*.035)));
+    const proposed={applied:true,outer,inner:{...outer},sides:Object.fromEntries(sides.map(side=>{
+      const sign=side==='L'||side==='T'?1:-1;
+      return [side,{outer:starts[side],inner:starts[side]+sign*depth}];
+    }))};
+    const keepForPeerCheck=()=>unresolved.push({trace,current,outer,starts,gutter});
+    if(!__refinePhysicalFrameEndpointV1128(proposed,trace.idx+1,false,true)){
+      keepForPeerCheck();
+      continue;
+    }
+    const thickness=sides.map(side=>proposed.sides[side].thickness);
+    if(!thickness.every(Number.isFinite)||Math.min(...thickness)<1||Math.max(...thickness)>depth||
+      Math.max(...thickness)-Math.min(...thickness)>Math.max(2,Math.round(Math.min(...thickness)*.35))){
+      keepForPeerCheck();
+      continue;
+    }
+    measured.push({trace,current,inner:proposed.inner,thickness});
+  }
+  if(measured.length>=4&&measured.length>=stages.length*.70){
+    const modes=sides.map((_,i)=>{
+      const values=measured.map(row=>row.thickness[i]).sort((a,b)=>a-b);
+      return values[Math.floor(values.length/2)];
+    });
+    const confirmed=measured.slice();
+    for(const {trace,current,outer,starts,gutter} of unresolved){
+      const peers=confirmed.filter(row=>Math.abs(row.trace.detect.w-outer.w)<=2&&
+        Math.abs(row.trace.detect.h-outer.h)<=2);
+      if(peers.length<4||peers.length<confirmed.length*.75)continue;
+      const sampler=__createSourceGraySamplerV711(outer,gutter,gutter);
+      if(!sampler)continue;
+      // Only borrow depth on a side whose own dark stroke is visible.
+      const insets=sides.map((side,index)=>{
+        const horizontal=side==='T'||side==='B';
+        const sign=side==='L'||side==='T'?1:-1;
+        const first=horizontal?outer.x:outer.y;
+        const length=horizontal?outer.w:outer.h;
+        for(let offset=0;offset<Math.min(3,modes[index]);offset++){
+          const fixed=starts[side]+sign*offset;
+          let dark=0;
+          for(let i=0;i<24;i++){
+            const along=first+length*(.10+.80*i/23);
+            dark+=(horizontal?sampler.gray(along,fixed):sampler.gray(fixed,along))<95;
+          }
+          if(dark>=21)return modes[index];
+        }
+        return 0;
+      });
+      if(!insets.some(Boolean))continue;
+      const [left,right,top,bottom]=insets;
+      measured.push({trace,current,thickness:modes,inner:{
+        x:outer.x+left,y:outer.y+top,w:outer.w-left-right,h:outer.h-top-bottom}});
+    }
+    for(const {trace,current,inner,thickness} of measured){
+      if(thickness.some((value,i)=>Math.abs(value-modes[i])>Math.max(2,Math.round(modes[i]*.35))))continue;
+      const x=Math.max(current.x,inner.x),y=Math.max(current.y,inner.y);
+      const w=Math.min(current.x+current.w,inner.x+inner.w)-x;
+      const h=Math.min(current.y+current.h,inner.y+inner.h)-y;
+      if(w<20||h<20||(x===current.x&&y===current.y&&w===current.w&&h===current.h))continue;
+      const rect={x,y,w,h};
+      __sourceOutputRenderPlan.updateRect(cards[trace.idx],trace.idx,rect,'verified-source-frame-endpoints');
+      trace.finalRect=rect;
+      trace.out={w,h};
+    }
+  }
+}
 
 try{
   window.__SOURCE_OUTPUT_RENDER_PLAN__=await __sourceOutputRenderPlan.materialize(sourceImage);
